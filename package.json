@@ -1,0 +1,17 @@
+{
+  "name": "@repo/data-r",
+  "version": "0.1.0",
+  "private": true,
+  "description": "R package for processing DSS health indicators",
+  "scripts": {
+    "r:setup": "docker-compose run --rm r-dev Rscript /workspace/packages/data-r/setup.R",
+    "r:test": "docker-compose run --rm r-dev bash -c 'cd /workspace/packages/data-r && Rscript -e \"devtools::test()\"'",
+    "r:check": "docker-compose run --rm r-dev bash -c 'cd /workspace/packages/data-r && Rscript -e \"devtools::check()\"'",
+    "r:document": "docker-compose run --rm r-dev bash -c 'cd /workspace/packages/data-r && Rscript -e \"devtools::document()\"'",
+    "r:install": "docker-compose run --rm r-dev bash -c 'cd /workspace/packages/data-r && Rscript -e \"devtools::install()\"'",
+    "r:process-indicators": "docker-compose run --rm r-dev bash -c 'Rscript /workspace/packages/data-r/setup.R && cd /workspace/packages/data-r && RENV_CONFIG_AUTOLOADER_ENABLED=FALSE Rscript -e \"library(dss.indicators); process_indicator(\\\"chronic_malnutrition_under5\\\")\"'",
+    "r:process-single": "docker-compose run --rm r-dev bash -c 'Rscript /workspace/packages/data-r/setup.R && cd /workspace/packages/data-r && RENV_CONFIG_AUTOLOADER_ENABLED=FALSE Rscript -e \"library(dss.indicators); process_indicator(\\\"chronic_malnutrition_under5\\\")\"'"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

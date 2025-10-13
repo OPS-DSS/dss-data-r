@@ -1,0 +1,39 @@
+Package: dss.indicators
+Type: Package
+Title: DSS Health Indicators Processing System
+Version: 0.1.0
+Authors@R: c(
+    person("Diego", "Vargas", email = "vargasdie@ops.org", role = c("aut", "cre")),
+    person("Claudia", "Chavez", email = "claudia@gmev.cl", role = "aut"))
+Description:
+    A comprehensive system for processing Social Determinants of Health (DSS)
+    indicators from various data sources, primarily focused on Latin American
+    statistical institutes like INEI Peru.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    rvest (>= 1.0.0),
+    xml2 (>= 1.3.0),
+    stringr (>= 1.4.0),
+    stringi (>= 1.7.0),
+    dplyr (>= 1.1.0),
+    tidyr (>= 1.3.0),
+    readr (>= 2.1.0),
+    readxl (>= 1.4.0),
+    janitor (>= 2.2.0),
+    arrow (>= 12.0.0),
+    yaml (>= 2.3.0),
+    here (>= 1.0.0),
+    fs (>= 1.6.0),
+    glue (>= 1.6.0),
+    purrr (>= 1.0.0)
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
+Config/testthat/edition: 3
