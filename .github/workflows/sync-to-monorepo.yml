@@ -1,0 +1,54 @@
+# ================================
+# This workflow should be placed in each PUBLIC repository
+# at .github/workflows/sync-to-monorepo.yml
+# ================================
+
+name: Sync to Monorepo
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+jobs:
+  notify-monorepo:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract repository name
+        id: repo
+        run: |
+          REPO_NAME="${{ github.event.repository.name }}"
+          echo "name=$REPO_NAME" >> $GITHUB_OUTPUT
+
+      - name: Trigger monorepo sync
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.MONOREPO_DISPATCH_TOKEN }}
+          repository: ${{ secrets.MONOREPO_OWNER }}/${{ secrets.MONOREPO_NAME }}
+          event-type: public-repo-update
+          client-payload: |
+            {
+              "repository": "${{ steps.repo.outputs.name }}",
+              "commit_sha": "${{ github.event.pull_request.merge_commit_sha }}",
+              "commit_message": "${{ github.event.pull_request.title }}",
+              "pr_number": "${{ github.event.pull_request.number }}",
+              "pr_author": "${{ github.event.pull_request.user.login }}",
+              "pr_url": "${{ github.event.pull_request.html_url }}"
+            }
+
+      - name: Comment on PR
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ✅ **Sync Triggered**
+
+            Your changes have been queued for sync to the main monorepo.
+
+            A pull request will be automatically created in the monorepo for review.
+            Once approved there, your changes will be permanently integrated into the system.
+
+            Thank you for your contribution! 🎉
