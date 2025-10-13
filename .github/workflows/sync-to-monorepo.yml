@@ -1,8 +1,3 @@
-# ================================
-# This workflow should be placed in each PUBLIC repository
-# at .github/workflows/sync-to-monorepo.yml
-# ================================
-
 name: Sync to Monorepo
 
 on:
