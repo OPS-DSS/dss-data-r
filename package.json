@@ -1,5 +1,5 @@
 {
-  "name": "@repo/data-r",
+  "name": "@ops-dss/data-r",
   "version": "0.1.0",
   "private": true,
   "description": "R package for processing DSS health indicators",
