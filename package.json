@@ -1,7 +1,7 @@
 {
   "name": "@ops-dss/data-r",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "description": "R package for processing DSS health indicators",
   "scripts": {
     "r:setup": "docker-compose run --rm r-dev Rscript /workspace/packages/data-r/setup.R",
