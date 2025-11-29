@@ -2,6 +2,10 @@
   "name": "@ops-dss/data-r",
   "version": "0.1.0",
   "private": false,
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "description": "R package for processing DSS health indicators",
   "scripts": {
     "r:setup": "docker-compose run --rm r-dev Rscript /workspace/packages/data-r/setup.R",
