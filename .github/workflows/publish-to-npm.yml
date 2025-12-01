@@ -1,0 +1,73 @@
+name: Publish to NPM
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build package
+        run: |
+          if jq -e '.scripts.build' package.json > /dev/null; then
+            pnpm run build
+          else
+            echo "No build script found in package.json, skipping build."
+          fi
+
+      - name: Check if version exists on npm
+        id: check-version
+        run: |
+          PACKAGE_NAME=$(jq -r '.name' package.json)
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+
+          echo "Package: $PACKAGE_NAME"
+          echo "Version: $PACKAGE_VERSION"
+
+          # Check if this version exists on npm
+          if npm view $PACKAGE_NAME@$PACKAGE_VERSION version 2>/dev/null; then
+            echo "Version $PACKAGE_VERSION already published"
+            echo "should-publish=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version $PACKAGE_VERSION not found on npm, will publish"
+            echo "should-publish=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to NPM
+        if: steps.check-version.outputs.should-publish == 'true'
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create Git tag
+        if: steps.check-version.outputs.should-publish == 'true'
+        run: |
+          PACKAGE_VERSION=$(jq -r '.version' package.json)
+          git config user.name "DSS Bot"
+          git config user.email "bot@ops-dss-system.org"
+          git tag -a "v$PACKAGE_VERSION" -m "Release v$PACKAGE_VERSION"
+          git push origin "v$PACKAGE_VERSION"
