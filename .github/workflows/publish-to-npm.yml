@@ -57,11 +57,14 @@ jobs:
             echo "should-publish=true" >> $GITHUB_OUTPUT
           fi
 
+      - name: Configure npm authentication
+        if: steps.check-version.outputs.should-publish == 'true'
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
+
       - name: Publish to NPM
         if: steps.check-version.outputs.should-publish == 'true'
         run: pnpm publish --no-git-checks --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create Git tag
         if: steps.check-version.outputs.should-publish == 'true'
