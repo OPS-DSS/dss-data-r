@@ -48,14 +48,14 @@ process_suicide_huila <- function(output_dir = here("outputs")) {
       territorio      = Territorio
     ) |>
     select(iso3, territorio, cod_subnacional, cod_local, anio, sexo, valor, indicador) |>
-    filter(!is.na(valor), !is.na(anio))
+    filter(!is.na(valor), !is.na(anio), cod_local == "41770 - Suaza")
 
   # Create output directories
   dir_create(file.path(output_dir, "csv"))
   dir_create(file.path(output_dir, "parquet"))
 
   # Save outputs
-  csv_file     <- file.path(output_dir, "csv",     "suicide_huila.csv")
+  csv_file <- file.path(output_dir, "csv", "suicide_huila.csv")
   parquet_file <- file.path(output_dir, "parquet", "suicide_huila.parquet")
 
   write_csv(suicidio, csv_file)
