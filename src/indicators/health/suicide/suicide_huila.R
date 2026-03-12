@@ -13,6 +13,7 @@ library(arrow)
 library(readr)
 library(fs)
 library(glue)
+source(here("packages/data-r/R/util_gaps.R"))
 
 process_suicide_huila <- function(output_dir = here("outputs")) {
   url <- "https://www.huila.gov.co/observatoriosalud/loader.php?lServicio=Tools2&lTipo=descargas&lFuncion=descargar&idFile=84079"
@@ -47,31 +48,58 @@ process_suicide_huila <- function(output_dir = here("outputs")) {
       sexo            = Sexo,
       territorio      = Territorio
     ) |>
-    select(iso3, territorio, cod_subnacional, cod_local, anio, sexo, valor, indicador) |>
-    filter(!is.na(valor), !is.na(anio), cod_local == "41770 - Suaza")
+    select(
+      iso3,
+      territorio,
+      cod_subnacional,
+      cod_local,
+      anio,
+      sexo,
+      valor,
+      indicador
+    )
+
+  # filter(!is.na(valor), !is.na(anio), cod_local == "41770 - Suaza")
+
+  brecha_sexo <- calcular_brechas(
+    data = suicidio,
+    var_estrato = sexo,
+    var_valor = valor,
+    grupo_ref = "Femenino",
+    grupo_comp = "Masculino",
+    var_anio = anio,
+    var_territorio = territorio,
+    territorios = c("Nacional", "Huila", "Suaza")
+  )
 
   # Create output directories
   dir_create(file.path(output_dir, "csv"))
   dir_create(file.path(output_dir, "parquet"))
 
   # Save outputs
-  csv_file <- file.path(output_dir, "csv", "suicide_huila.csv")
-  parquet_file <- file.path(output_dir, "parquet", "suicide_huila.parquet")
+  suicide_csv_file <- file.path(output_dir, "csv", "suicide_huila.csv")
+  suicide_parquet_file <- file.path(output_dir, "parquet", "suicide_huila.parquet")
+  gaps_csv_file <- file.path(output_dir, "csv", "suicide_huila_gaps.csv")
+  gaps_parquet_file <- file.path(output_dir, "parquet", "suicide_huila_gaps.parquet")
 
-  write_csv(suicidio, csv_file)
-  write_parquet(suicidio, parquet_file)
+  write_csv(suicidio, suicide_csv_file)
+  write_parquet(suicidio, suicide_parquet_file)
+  write_csv(brecha_sexo, gaps_csv_file)
+  write_parquet(brecha_sexo, gaps_parquet_file)
 
   file.remove(temp_file)
 
   message(glue("✅ Processed {nrow(suicidio)} rows"))
   message(glue("📅 Years: {min(suicidio$anio)} - {max(suicidio$anio)}"))
   message(glue("👤 Sex categories: {paste(unique(suicidio$sexo), collapse = ', ')}"))
-  message(glue("💾 CSV:     {csv_file}"))
-  message(glue("💾 Parquet: {parquet_file}"))
+  message(glue("💾 CSV:     {suicide_csv_file}"))
+  message(glue("💾 Parquet: {suicide_parquet_file}"))
+  message(glue("💾 Gaps CSV: {gaps_csv_file}"))
+  message(glue("💾 Gaps Parquet: {gaps_parquet_file}"))
 
   return(list(
     data         = suicidio,
-    output_files = c(csv_file, parquet_file)
+    output_files = c(suicide_csv_file, suicide_parquet_file, gaps_csv_file, gaps_parquet_file)
   ))
 }
 
