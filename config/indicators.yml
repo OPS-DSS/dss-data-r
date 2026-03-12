@@ -28,6 +28,43 @@ chronic_malnutrition_under5:
         type: "numeric"
   updated: "2025-09-16"
 
+# Suicide Mortality Rate - Huila (Colombia)
+suicide_huila:
+  id: "SUICIDE_MORTALITY_HUILA"
+  names:
+    es: "Mortalidad por suicidio (por 100.000 hab.) - Huila"
+    en: "Suicide Mortality Rate (per 100,000 inhabitants) - Huila"
+  source:
+    name: "Observatorio de Salud del Huila"
+    url: "https://www.huila.gov.co/observatoriosalud/loader.php?lServicio=Tools2&lTipo=descargas&lFuncion=descargar&idFile=84079"
+  category: "health/mental-health"
+  processing:
+    type: "direct_download"
+    format: "xlsx"
+    script: "src/indicators/health/suicide/suicide_huila.R"
+  output:
+    format: ["csv", "parquet"]
+    structure: "long"
+    columns:
+      - name: "iso3"
+        type: "character"
+      - name: "territorio"
+        type: "character"
+      - name: "cod_subnacional"
+        type: "character"
+      - name: "cod_local"
+        type: "character"
+      - name: "anio"
+        type: "integer"
+      - name: "sexo"
+        type: "character"
+        values: ["Masculino", "Femenino", "Total"]
+      - name: "valor"
+        type: "numeric"
+      - name: "indicador"
+        type: "character"
+  updated: "2026-03-09"
+
 # Pension Coverage by Gender Indicator
 pension_coverage_gender:
   id: "PENSION_COVERAGE_GENDER"
