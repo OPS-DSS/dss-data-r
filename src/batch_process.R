@@ -99,7 +99,7 @@ process_suaza_priorities <- function(output_dir = here("outputs")) {
     "suicide_huila",
     "analytics_suaza",
     "huila_map",
-    # Add more as they're configured
+    "maternal_mortality_rate"
   )
 
   message("🇨🇴 Processing priority indicators for Suaza, Colombia")
@@ -160,7 +160,6 @@ generate_processing_report <- function(results) {
 run_indicator_scripts <- function(
     config_path = "/workspace/packages/data-r/config/indicators.yml",
     base_dir = "/workspace/packages/data-r") {
-
   config <- yaml::read_yaml(config_path)
   indicator_ids <- names(config)
 
@@ -188,14 +187,17 @@ run_indicator_scripts <- function(
 
     message(glue::glue("🔄 Processing: {indicator_id} ({script_rel})"))
 
-    tryCatch({
-      source(script_path, local = new.env(parent = globalenv()))
-      message(glue::glue("✅ Completed: {indicator_id}"))
-      results[[indicator_id]] <- list(indicator_id = indicator_id, error = NULL)
-    }, error = function(e) {
-      message(glue::glue("❌ Failed: {indicator_id} - {e$message}"))
-      results[[indicator_id]] <<- list(indicator_id = indicator_id, error = e$message)
-    })
+    tryCatch(
+      {
+        source(script_path, local = new.env(parent = globalenv()))
+        message(glue::glue("✅ Completed: {indicator_id}"))
+        results[[indicator_id]] <- list(indicator_id = indicator_id, error = NULL)
+      },
+      error = function(e) {
+        message(glue::glue("❌ Failed: {indicator_id} - {e$message}"))
+        results[[indicator_id]] <<- list(indicator_id = indicator_id, error = e$message)
+      }
+    )
   }
 
   successful <- sum(purrr::map_lgl(results, ~ is.null(.x$error)))

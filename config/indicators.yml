@@ -104,3 +104,37 @@ huila_map:
         type: "numeric"
         description: "Repetition rate (%)"
   updated: "2026-03-14"
+
+# Huila Maternal Mortality Rate
+maternal_mortality_rate:
+  id: "MATERNAL_MORTALITY_RATE"
+  names:
+    es: "Mortalidad Materna (por 100.000 habitantes)"
+    en: "Maternal Mortality Rate (pero 100,000 inhabitants)"
+  source:
+    name: "Observatorio de Salud del Huila"
+    url: "https://www.huila.gov.co/observatoriosalud/loader.php?lServicio=Tools2&lTipo=descargas&lFuncion=descargar&idFile=85285"
+  category: "health/outcomes"
+  processing:
+    type: "direct_download"
+    format: "xlsx"
+    script: "src/indicators/health/maternal_mortality/maternal_mortality_rate.R"
+  output:
+    format: ["csv","parquet"]
+    structure: "long"
+    columns:
+      - name: "iso3"
+        type: "character"
+      - name: "territorio"
+        type: "character"
+      - name: "cod_subnacional"
+        type: "character"
+      - name: "cod_local"
+        type: "character"
+      - name: "anio"
+        type: "integer"
+      - name: "valor"
+        type: "numeric"
+      - name: "indicador"
+        type: "character"
+  updated: "2026-03-26"

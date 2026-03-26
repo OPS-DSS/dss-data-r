@@ -36,6 +36,7 @@ setup_package_structure <- function() {
   # Create indicator directories
   fs::dir_create("src/indicators/health/suicide")
   fs::dir_create("src/indicators/health/analytics")
+  fs::dir_create("src/indicators/health/maternal_mortality")
   # fs::dir_create("src/indicators/social/employment")
   # fs::dir_create("src/indicators/environmental")
   # fs::dir_create("src/indicators/economic")
