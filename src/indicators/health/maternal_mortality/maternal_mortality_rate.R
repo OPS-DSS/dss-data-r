@@ -51,7 +51,8 @@ process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
       cod_local,
       anio,
       valor
-    )
+    ) |>
+    filter(Territorio %in% c("Nacional", "Huila"))
 
   # Create output directories
   dir_create(file.path(output_dir, "csv"))
