@@ -120,8 +120,16 @@ maternal_mortality_rate:
     format: "xlsx"
     script: "src/indicators/health/maternal_mortality/maternal_mortality_rate.R"
   output:
-    format: ["csv","parquet"]
+    format: ["csv", "parquet", "geojson"]
     structure: "long"
+    files:
+      - "maternal_mortality_rate"
+      - "maternal_mortality_quintiles"
+      - "maternal_mortality_gaps"
+      - "forest_plot_suaza"
+      - "scatter_maternal"
+      - "analytics_maternal"
+      - "huila_maternal_mortality"
     columns:
       - name: "iso3"
         type: "character"
@@ -137,4 +145,4 @@ maternal_mortality_rate:
         type: "numeric"
       - name: "indicador"
         type: "character"
-  updated: "2026-03-26"
+  updated: "2026-03-30"

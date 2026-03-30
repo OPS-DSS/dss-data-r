@@ -16,6 +16,52 @@ library(glue)
 library(jsonlite)
 library(tidyr)
 library(rlang)
+library(geodata)
+library(terra)
+library(RColorBrewer)
+library(sf)
+library(stringi)
+
+#' Normalise a municipality name for fuzzy matching.
+normalize_name <- function(x) {
+  x |>
+    tolower() |>
+    stri_trans_general("Latin-ASCII") |>
+    trimws()
+}
+
+#' Assign a 5-class YlOrRd colour to each value using quantile breaks.
+#' NA values receive "#CCCCCC" (grey / no-data).
+#' Falls back to equal-interval breaks when quantile breaks collapse (e.g.
+#' when many values are identical), ensuring all palette classes are reachable.
+compute_color <- function(values) {
+  palette <- RColorBrewer::brewer.pal(5, "YlOrRd")
+
+  if (length(values) == 0L || all(is.na(values))) {
+    return(rep("#CCCCCC", length(values)))
+  }
+
+  breaks <- quantile(values, probs = seq(0, 1, length.out = 6), na.rm = TRUE)
+  breaks <- unique(breaks)
+
+  # Need length(palette) + 1 distinct break points to produce length(palette)
+  # intervals (one per colour class). Fewer breaks means some classes are
+  # unreachable; fall back to equal-interval in that case.
+  if (length(breaks) < length(palette) + 1L) {
+    rng <- range(values, na.rm = TRUE)
+    if (is.finite(rng[1]) && rng[1] == rng[2]) {
+      colors <- rep(palette[3L], length(values))
+      colors[is.na(values)] <- "#CCCCCC"
+      return(colors)
+    }
+    breaks <- seq(rng[1], rng[2], length.out = length(palette) + 1L)
+  }
+
+  classes <- cut(values, breaks = breaks, include.lowest = TRUE, labels = FALSE)
+  colors  <- palette[classes]
+  colors[is.na(colors)] <- "#CCCCCC"
+  colors
+}
 
 process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
   # ── 1. Download and process maternal mortality data ──────────────────────────
@@ -370,7 +416,42 @@ process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
 
   correlation_data <- bind_rows(tabla_cor) |> arrange(correlacion)
 
-  # ── 8. Save outputs ───────────────────────────────────────────────────────────
+  # ── 8. Generate Huila maternal mortality GeoJSON (municipality level) ──────────
+  # For each municipality, use the value from the latest year in which at least
+  # one maternal death was recorded (valor > 0).  Municipalities with no recorded
+  # deaths in any year are shown as no-data (grey on the map).
+  message("🗺️  Generating Huila maternal mortality GeoJSON...")
+
+  colombia_muni <- geodata::gadm(country = "COL", level = 2, path = tempdir())
+  huila_muni    <- colombia_muni[colombia_muni$NAME_1 == "Huila", ]
+  huila_sf_base <- sf::st_as_sf(huila_muni)
+
+  mm_map_df <- data_cruce |>
+    filter(valor > 0) |>
+    group_by(territorio) |>
+    slice_max(anio, n = 1, with_ties = FALSE) |>
+    ungroup() |>
+    mutate(nombre_norm = normalize_name(territorio))
+
+  huila_base_df <- as.data.frame(huila_muni) |>
+    mutate(nombre_norm = normalize_name(NAME_2))
+
+  mm_joined <- huila_base_df |>
+    left_join(mm_map_df |> select(nombre_norm, valor), by = "nombre_norm")
+
+  mm_sf <- huila_sf_base |>
+    mutate(
+      value = mm_joined$valor,
+      color = compute_color(mm_joined$valor)
+    ) |>
+    select(NAME_2, value, color)
+
+  dir_create(file.path(output_dir, "geojson"))
+  mm_geojson_file <- file.path(output_dir, "geojson", "huila_maternal_mortality.geojson")
+  sf::st_write(mm_sf, mm_geojson_file, delete_dsn = TRUE)
+  message(glue("💾 Maternal mortality GeoJSON: {mm_geojson_file}"))
+
+  # ── 9. Save outputs ───────────────────────────────────────────────────────────
   dir_create(file.path(output_dir, "csv"))
   dir_create(file.path(output_dir, "parquet"))
 
@@ -435,6 +516,7 @@ process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
   message(glue("💾 Forest plot CSV:       {forest_csv}"))
   message(glue("💾 Scatter CSV:           {scatter_csv}"))
   message(glue("💾 Analytics temporal CSV:{analytics_maternal_csv}"))
+  message(glue("💾 Maternal mortality GeoJSON: {mm_geojson_file}"))
 
   return(list(
     data = mortalidad_materna,
@@ -448,6 +530,7 @@ process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
       quintil_csv, quintil_parquet,
       gaps_csv, gaps_parquet,
       scatter_csv, scatter_parquet,
+      mm_geojson_file,
       analytics_maternal_csv, analytics_maternal_parquet
     )
   ))
