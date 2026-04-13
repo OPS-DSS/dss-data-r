@@ -138,8 +138,8 @@ process_education_suaza <- function(output_dir = here("outputs")) {
   dir_create(file.path(output_dir, "parquet"))
 
   # Output file paths
-  csv_file     <- file.path(output_dir, "csv",     "education_suaza.csv")
-  parquet_file <- file.path(output_dir, "parquet", "education_suaza.parquet")
+  csv_file     <- file.path(output_dir, "csv",     "education.csv")
+  parquet_file <- file.path(output_dir, "parquet", "education.parquet")
 
   write_csv(education_suaza, csv_file)
   write_parquet(education_suaza, parquet_file)

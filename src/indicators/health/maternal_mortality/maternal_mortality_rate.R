@@ -447,7 +447,7 @@ process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
     select(NAME_2, value, color)
 
   dir_create(file.path(output_dir, "geojson"))
-  mm_geojson_file <- file.path(output_dir, "geojson", "huila_maternal_mortality.geojson")
+  mm_geojson_file <- file.path(output_dir, "geojson", "map_maternal_mortality.geojson")
   sf::st_write(mm_sf, mm_geojson_file, delete_dsn = TRUE)
   message(glue("💾 Maternal mortality GeoJSON: {mm_geojson_file}"))
 
@@ -474,8 +474,8 @@ process_maternal_mortality_rate <- function(output_dir = here("outputs")) {
   write_parquet(brecha_quintiles, gaps_parquet)
 
   # Spearman correlation forest-plot data
-  forest_csv     <- file.path(output_dir, "csv",     "forest_plot_suaza.csv")
-  forest_parquet <- file.path(output_dir, "parquet", "forest_plot_suaza.parquet")
+  forest_csv     <- file.path(output_dir, "csv",     "forest_plot.csv")
+  forest_parquet <- file.path(output_dir, "parquet", "forest_plot.parquet")
   write_csv(correlation_data,     forest_csv)
   write_parquet(correlation_data, forest_parquet)
 

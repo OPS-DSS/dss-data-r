@@ -77,10 +77,10 @@ process_suicide_huila <- function(output_dir = here("outputs")) {
   dir_create(file.path(output_dir, "parquet"))
 
   # Save outputs
-  suicide_csv_file <- file.path(output_dir, "csv", "suicide_huila.csv")
-  suicide_parquet_file <- file.path(output_dir, "parquet", "suicide_huila.parquet")
-  gaps_csv_file <- file.path(output_dir, "csv", "suicide_huila_gaps.csv")
-  gaps_parquet_file <- file.path(output_dir, "parquet", "suicide_huila_gaps.parquet")
+  suicide_csv_file <- file.path(output_dir, "csv", "suicide_mortality.csv")
+  suicide_parquet_file <- file.path(output_dir, "parquet", "suicide_mortality.parquet")
+  gaps_csv_file <- file.path(output_dir, "csv", "suicide_mortality_gaps.csv")
+  gaps_parquet_file <- file.path(output_dir, "parquet", "suicide_mortality_gaps.parquet")
 
   write_csv(suicidio, suicide_csv_file)
   write_parquet(suicidio, suicide_parquet_file)

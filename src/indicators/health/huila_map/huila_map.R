@@ -123,7 +123,7 @@ process_huila_map <- function(output_dir = here("outputs")) {
   message(glue("   Found {n_muni} municipalities in Huila"))
 
   # ── Maternal mortality data ──────────────────────────────────────────────
-  mm_geojson_path <- file.path(output_dir, "geojson", "huila_maternal_mortality.geojson")
+  mm_geojson_path <- file.path(output_dir, "geojson", "map_maternal_mortality.geojson")
 
   mm_lookup <- setNames(
     rep(NA_real_, n_muni),
@@ -227,12 +227,12 @@ process_huila_map <- function(output_dir = here("outputs")) {
 
   # One bivariate GeoJSON per education indicator
   indicator_map <- list(
-    cobertura_bruta = "huila_cobertura_bruta",
-    cobertura_neta  = "huila_cobertura_neta",
-    deserci_n       = "huila_desercion",
-    aprobaci_n      = "huila_aprobacion",
-    reprobaci_n     = "huila_reprobacion",
-    repitencia      = "huila_repitencia"
+    cobertura_bruta = "map_cobertura_bruta",
+    cobertura_neta  = "map_cobertura_neta",
+    deserci_n       = "map_desercion",
+    aprobaci_n      = "map_aprobacion",
+    reprobaci_n     = "map_reprobacion",
+    repitencia      = "map_repitencia"
   )
 
   output_files <- character(0)
@@ -266,7 +266,7 @@ process_huila_map <- function(output_dir = here("outputs")) {
       cobertura_bruta, cobertura_neta,
       deserci_n, aprobaci_n, reprobaci_n, repitencia
     )
-  csv_file <- file.path(output_dir, "csv", "huila_map.csv")
+  csv_file <- file.path(output_dir, "csv", "map.csv")
   write_csv(csv_df, csv_file)
   output_files <- c(output_files, csv_file)
   message(glue("💾 CSV: {csv_file}"))

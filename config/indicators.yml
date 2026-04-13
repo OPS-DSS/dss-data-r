@@ -52,8 +52,8 @@ analytics_suaza:
     format: ["csv", "parquet"]
     structure: "long"
     files:
-      - "analytics_suaza"
-      - "analytics_suaza_lags"
+      - "analytics"
+      - "analytics_lags"
   updated: "2026-03-13"
 
 # Huila Municipal Map
@@ -73,13 +73,13 @@ huila_map:
     format: ["geojson", "csv"]
     structure: "spatial"
     files:
-      - "huila_cobertura_bruta"
-      - "huila_cobertura_neta"
-      - "huila_desercion"
-      - "huila_aprobacion"
-      - "huila_reprobacion"
-      - "huila_repitencia"
-      - "huila_map"
+      - "map_cobertura_bruta"
+      - "map_cobertura_neta"
+      - "map_desercion"
+      - "map_aprobacion"
+      - "map_reprobacion"
+      - "map_repitencia"
+      - "map"
     # CSV columns; GeoJSON features may additionally include GADM attributes
     columns:
       - name: "municipio"
@@ -126,10 +126,10 @@ maternal_mortality_rate:
       - "maternal_mortality_rate"
       - "maternal_mortality_quintiles"
       - "maternal_mortality_gaps"
-      - "forest_plot_suaza"
+      - "forest_plot"
       - "scatter_maternal"
       - "analytics_maternal"
-      - "huila_maternal_mortality"
+      - "map_maternal_mortality"
     columns:
       - name: "iso3"
         type: "character"
