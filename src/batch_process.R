@@ -96,7 +96,6 @@ process_all_indicators <- function(config_path = here("packages/data-r/config/in
 process_suaza_priorities <- function(output_dir = here("outputs")) {
   # Priority indicators
   priority_indicators <- c(
-    "suicide_huila",
     "analytics_suaza",
     "huila_map",
     "maternal_mortality_rate"
