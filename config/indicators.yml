@@ -194,3 +194,28 @@ program_cover:
     files:
       - "program_cover"
   updated: "2026-04-13"
+
+# SMV Mock Analytics
+smv_analytics:
+  id: "smv_analytics"
+  names:
+    es: "SMV Analytics"
+    en: "SMV Analytics"
+  source:
+    name: "Mock"
+  category: "analytics"
+  processing:
+    type: "mock"
+    script: "src/mock/analytics_maternal_mock.R"
+  output:
+    format: ["csv","parquet","geojson"]
+    structure: "long"
+    files:
+      - "mock_bivariate_traslado"
+      - "mock_bivariate_empleo_informal"
+      - "mock_bivariate_sobrecarga"
+      - "mock_bivariate_cobertura_programa"
+      - "mock_bivariate_transporte"
+      - "mock_maternal_mortality"
+      - "mock_scatter_maternal"
+  updated: "2026-04-16"
