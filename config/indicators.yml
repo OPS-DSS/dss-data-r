@@ -47,47 +47,37 @@ huila_map:
         description: "Repetition rate (%)"
   updated: "2026-03-14"
 
-# Maternal Mortality Rate
+# Maternal Mortality Rate (mock data for SMV)
 maternal_mortality_rate:
   id: "MATERNAL_MORTALITY_RATE"
   names:
-    es: "Mortalidad Materna (por 100.000 habitantes)"
-    en: "Maternal Mortality Rate (pero 100,000 inhabitants)"
+    es: "Mortalidad Materna (por 100.000 NV)"
+    en: "Maternal Mortality Rate (per 100,000 live births)"
   source:
-    name: "Observatorio de Salud del Huila"
-    url: "https://www.huila.gov.co/observatoriosalud/loader.php?lServicio=Tools2&lTipo=descargas&lFuncion=descargar&idFile=85285"
+    name: "Mock — San Martín del Valle"
   category: "health/outcomes"
   processing:
-    type: "direct_download"
-    format: "xlsx"
-    script: "src/indicators/health/maternal_mortality/maternal_mortality_rate.R"
+    type: "mock"
+    script: "src/mock/health/maternal_mortality_rate.R"
   output:
-    format: ["csv", "parquet", "geojson"]
+    format: ["csv", "parquet"]
     structure: "long"
     files:
       - "maternal_mortality_rate"
-      - "maternal_mortality_quintiles"
-      - "maternal_mortality_gaps"
-      - "forest_plot"
-      - "scatter_maternal"
-      - "analytics_maternal"
-      - "map_maternal_mortality"
     columns:
       - name: "iso3"
         type: "character"
-      - name: "territorio"
-        type: "character"
-      - name: "cod_subnacional"
-        type: "character"
-      - name: "cod_local"
+      - name: "NAME_2"
         type: "character"
       - name: "anio"
         type: "integer"
+      - name: "grupo_edad"
+        type: "character"
+      - name: "zona"
+        type: "character"
       - name: "valor"
         type: "numeric"
-      - name: "indicador"
-        type: "character"
-  updated: "2026-03-30"
+  updated: "2026-04-16"
 
 # SMV Mock Journey Time
 journey_time:

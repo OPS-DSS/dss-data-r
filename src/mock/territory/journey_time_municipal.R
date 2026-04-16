@@ -1,11 +1,12 @@
 # =========================================================
-# San Martín del Valle - Simulación de Mortalidad Materna
+# San Martín del Valle - Simulación de acceso geográfico
+# Proporción de embarazadas que viven a más de una hora
+# del centro de salud más cercano
 # =========================================================
 
 # ---------------------------
 # 1. Carpeta de salida
 # ---------------------------
-
 library(here)
 
 output_dir <- here("outputs")
@@ -17,7 +18,7 @@ if (!dir.exists(output_dir)) {
 # ---------------------------
 # 2. Paquetes
 # ---------------------------
-paquetes <- c("dplyr", "tidyr", "readr", "writexl", "ggplot2", "arrow")
+paquetes <- c("dplyr", "tidyr", "readr", "writexl", "ggplot2")
 
 instalados <- rownames(installed.packages())
 for (p in paquetes) {
@@ -29,12 +30,11 @@ library(tidyr)
 library(readr)
 library(writexl)
 library(ggplot2)
-library(arrow)
 
 # ---------------------------
 # 3. Semilla
 # ---------------------------
-set.seed(1234)
+set.seed(4321)
 
 # ---------------------------
 # 4. Leer base territorial
@@ -84,40 +84,62 @@ base <- expand_grid(
   left_join(smv_base, by = "NAME_2")
 
 # ---------------------------
-# 7. Efectos estructurales
+# 7. Tamaño de población embarazada simulada
+# ---------------------------
+base <- base %>%
+  mutate(
+    n_embarazadas = case_when(
+      tipo_zona == "urbano" & grupo_edad == "10-14" ~ sample(2:6, n(), replace = TRUE),
+      tipo_zona == "periurbano" & grupo_edad == "10-14" ~ sample(2:7, n(), replace = TRUE),
+      tipo_zona == "rural" & grupo_edad == "10-14" ~ sample(1:6, n(), replace = TRUE),
+      tipo_zona == "urbano" & grupo_edad == "15-19" ~ sample(8:20, n(), replace = TRUE),
+      tipo_zona == "periurbano" & grupo_edad == "15-19" ~ sample(8:18, n(), replace = TRUE),
+      tipo_zona == "rural" & grupo_edad == "15-19" ~ sample(5:15, n(), replace = TRUE),
+      tipo_zona == "urbano" & grupo_edad == "20-34" ~ sample(35:90, n(), replace = TRUE),
+      tipo_zona == "periurbano" & grupo_edad == "20-34" ~ sample(22:65, n(), replace = TRUE),
+      tipo_zona == "rural" & grupo_edad == "20-34" ~ sample(12:45, n(), replace = TRUE),
+      tipo_zona == "urbano" & grupo_edad == "35-49" ~ sample(10:30, n(), replace = TRUE),
+      tipo_zona == "periurbano" & grupo_edad == "35-49" ~ sample(8:22, n(), replace = TRUE),
+      tipo_zona == "rural" & grupo_edad == "35-49" ~ sample(5:18, n(), replace = TRUE),
+      TRUE ~ sample(5:15, n(), replace = TRUE)
+    )
+  )
+
+# ---------------------------
+# 8. Efectos del modelo
 # ---------------------------
 # Gradiente esperado:
 # urbano < periurbano < rural
 
 efecto_zona <- c(
-  "urbano" = 0,
-  "periurbano" = 22,
-  "rural" = 48
+  "urbano" = -0.18,
+  "periurbano" = 0.12,
+  "rural" = 0.55
 )
 
 efecto_edad <- c(
-  "10-14" = 28,
-  "15-19" = 12,
-  "20-34" = 0,
-  "35-49" = 18
+  "10-14" = 0.08,
+  "15-19" = 0.04,
+  "20-34" = 0.00,
+  "35-49" = 0.03
 )
 
-# variabilidad intra-zona por barrio
+# Variabilidad intra-zona por barrio
 efecto_barrio <- smv_base %>%
   mutate(
     efecto_barrio = rnorm(
       n(),
       mean = case_when(
-        tipo_zona == "urbano" ~ -3,
-        tipo_zona == "periurbano" ~ 3,
-        tipo_zona == "rural" ~ 8,
+        tipo_zona == "urbano" ~ -0.04,
+        tipo_zona == "periurbano" ~ 0.02,
+        tipo_zona == "rural" ~ 0.06,
         TRUE ~ 0
       ),
-      sd = 6
+      sd = 0.08
     ),
     efecto_barrio = ifelse(
       NAME_2 %in% barrios_criticos,
-      efecto_barrio + 14,
+      efecto_barrio + 0.18,
       efecto_barrio
     )
   ) %>%
@@ -127,134 +149,128 @@ base <- base %>%
   left_join(efecto_barrio, by = "NAME_2") %>%
   mutate(
     t = anio - min(anios),
-    tendencia_anual = -1.2 * t
+    tendencia_anual = -0.025 * t
   )
 
 # ---------------------------
-# 8. Simular tasa directamente
+# 9. Función logística
 # ---------------------------
-# Esto evita que todo salga 0 en mapas por barrio
+inv_logit <- function(x) 1 / (1 + exp(-x))
 
+# ---------------------------
+# 10. Simular proporción > 1 hora
+# ---------------------------
 base <- base %>%
   mutate(
-    valor = 35 +
+    logit_p = -0.75 +
       efecto_zona[tipo_zona] +
       efecto_edad[grupo_edad] +
       efecto_barrio +
       tendencia_anual +
-      rnorm(n(), 0, 7),
-    valor = pmax(valor, 5)
+      rnorm(n(), 0, 0.12),
+    prob_mas_1h = inv_logit(logit_p),
+    prob_mas_1h = pmin(pmax(prob_mas_1h, 0.02), 0.95),
+    n_mas_1h = rbinom(n(), size = n_embarazadas, prob = prob_mas_1h),
+    valor = n_mas_1h / n_embarazadas
   )
 
 # ---------------------------
-# 9. Salidas finales
+# 11. Salidas finales
 # ---------------------------
 
-# 9.1 Total municipio
+# 11.1 Total municipio
 total_municipio <- base %>%
   group_by(anio) %>%
   summarise(
-    valor = weighted.mean(
-      valor,
-      w = case_when(
-        grupo_edad == "10-14" ~ 0.03,
-        grupo_edad == "15-19" ~ 0.12,
-        grupo_edad == "20-34" ~ 0.60,
-        grupo_edad == "35-49" ~ 0.25
-      ),
-      na.rm = TRUE
-    ),
+    valor = sum(n_mas_1h, na.rm = TRUE) / sum(n_embarazadas, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
     iso3 = "COL",
     NAME_2 = "San Martín del Valle",
+    sexo = "Mujeres",
     grupo_edad = "Todas las edades",
     zona = "Total"
   ) %>%
-  select(iso3, NAME_2, anio, grupo_edad, zona, valor)
+  select(iso3, NAME_2, anio, sexo, grupo_edad, zona, valor)
 
-# 9.2 Municipio por edad
+# 11.2 Municipio por edad
 municipio_edad <- base %>%
   group_by(anio, grupo_edad) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = sum(n_mas_1h, na.rm = TRUE) / sum(n_embarazadas, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
     iso3 = "COL",
     NAME_2 = "San Martín del Valle",
+    sexo = "Mujeres",
     zona = "Total"
   ) %>%
-  select(iso3, NAME_2, anio, grupo_edad, zona, valor)
+  select(iso3, NAME_2, anio, sexo, grupo_edad, zona, valor)
 
-# 9.3 Municipio por zona
+# 11.3 Municipio por zona
 municipio_zona <- base %>%
   group_by(anio, tipo_zona) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = sum(n_mas_1h, na.rm = TRUE) / sum(n_embarazadas, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
     iso3 = "COL",
     NAME_2 = "San Martín del Valle",
+    sexo = "Mujeres",
     grupo_edad = "Todas las edades"
   ) %>%
   rename(zona = tipo_zona) %>%
-  select(iso3, NAME_2, anio, grupo_edad, zona, valor)
+  select(iso3, NAME_2, anio, sexo, grupo_edad, zona, valor)
 
-# 9.4 Municipio por zona y edad
+# 11.4 Municipio por zona y edad
 municipio_zona_edad <- base %>%
   group_by(anio, tipo_zona, grupo_edad) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = sum(n_mas_1h, na.rm = TRUE) / sum(n_embarazadas, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
     iso3 = "COL",
-    NAME_2 = "San Martín del Valle"
+    NAME_2 = "San Martín del Valle",
+    sexo = "Mujeres"
   ) %>%
   rename(zona = tipo_zona) %>%
-  select(iso3, NAME_2, anio, grupo_edad, zona, valor)
+  select(iso3, NAME_2, anio, sexo, grupo_edad, zona, valor)
 
-# 9.5 Barrio total
+# 11.5 Barrio total
 barrio_total <- base %>%
   group_by(anio, NAME_2, tipo_zona) %>%
   summarise(
-    valor = weighted.mean(
-      valor,
-      w = case_when(
-        grupo_edad == "10-14" ~ 0.03,
-        grupo_edad == "15-19" ~ 0.12,
-        grupo_edad == "20-34" ~ 0.60,
-        grupo_edad == "35-49" ~ 0.25
-      ),
-      na.rm = TRUE
-    ),
+    valor = sum(n_mas_1h, na.rm = TRUE) / sum(n_embarazadas, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
     iso3 = "COL",
+    sexo = "Mujeres",
     grupo_edad = "Todas las edades"
   ) %>%
   rename(zona = tipo_zona) %>%
-  select(iso3, NAME_2, anio, grupo_edad, zona, valor)
+  select(iso3, NAME_2, anio, sexo, grupo_edad, zona, valor)
 
-# 9.6 Barrio por edad
+# 11.6 Barrio por edad
 barrio_edad <- base %>%
   group_by(anio, NAME_2, tipo_zona, grupo_edad) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = sum(n_mas_1h, na.rm = TRUE) / sum(n_embarazadas, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
-    iso3 = "COL"
+    iso3 = "COL",
+    sexo = "Mujeres"
   ) %>%
   rename(zona = tipo_zona) %>%
-  select(iso3, NAME_2, anio, grupo_edad, zona, valor)
+  select(iso3, NAME_2, anio, sexo, grupo_edad, zona, valor)
 
 # Unir todo
-tasa_mortalidad_materna_final <- bind_rows(
+proporcion_embarazadas_mas_1h_final <- bind_rows(
   total_municipio,
   municipio_edad,
   municipio_zona,
@@ -265,16 +281,17 @@ tasa_mortalidad_materna_final <- bind_rows(
   arrange(NAME_2, anio, zona, grupo_edad)
 
 # ---------------------------
-# 10. Guardar archivos
+# 12. Guardar archivos
 # ---------------------------
+
 csv_dir <- file.path(output_dir, "csv")
 parquet_dir <- file.path(output_dir, "parquet")
 
 if (!dir.exists(csv_dir)) dir.create(csv_dir, recursive = TRUE)
 if (!dir.exists(parquet_dir)) dir.create(parquet_dir, recursive = TRUE)
 
-archivo_csv <- file.path(csv_dir, "maternal_mortality_rate.csv")
-write_csv(tasa_mortalidad_materna_final, archivo_csv)
+archivo_csv <- file.path(csv_dir, "journey_time_municipal.csv")
+write_csv(proporcion_embarazadas_mas_1h_final, archivo_csv)
 
-archivo_parquet <- file.path(parquet_dir, "maternal_mortality_rate.parquet")
-write_parquet(tasa_mortalidad_materna_final, archivo_parquet)
+archivo_parquet <- file.path(parquet_dir, "journey_time_municipal.parquet")
+write_parquet(proporcion_embarazadas_mas_1h_final, archivo_parquet)
