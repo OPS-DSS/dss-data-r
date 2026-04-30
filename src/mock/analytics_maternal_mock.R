@@ -7,12 +7,9 @@
 #   outputs/parquet/mock_forest_plot.parquet
 #   outputs/parquet/mock_analytics_maternal.parquet
 #   outputs/parquet/mock_scatter_maternal.parquet
-#   outputs/geojson/mock_bivariate_traslado.geojson
-#   outputs/geojson/mock_bivariate_empleo_informal.geojson
-#   outputs/geojson/mock_bivariate_sobrecarga.geojson
-#   outputs/geojson/mock_bivariate_cobertura_programa.geojson
-#   outputs/geojson/mock_bivariate_transporte.geojson
-#   outputs/geojson/mock_maternal_mortality.geojson
+#   outputs/geojson/mock_bivariate_{indicator}_{year}.geojson  (per indicator × year)
+#   outputs/geojson/mock_maternal_mortality_{year}.geojson     (per year)
+#   outputs/geojson/mock_bivariate_dss_{ind_x}_{ind_y}_{year}.geojson (per pair × year)
 #
 # Run AFTER: SMV_map.R, maternal_mortality_rate.R, and all five
 #            *_municipal.R scripts have been executed.
@@ -109,10 +106,13 @@ all_data <- mm_barrio |>
   dplyr::left_join(cobertura_df,  by = c("NAME_2", "anio")) |>
   dplyr::left_join(transporte_df, by = c("NAME_2", "anio"))
 
-# ── 4. Forest plot: Spearman correlations (last available year) ───────────────
+# ── 4. Forest plot: Spearman correlations (all available years) ───────────────
+#
+# Generates one row per (anio, indicador) where sufficient non-NA data exists.
+# Years or indicators with fewer than 4 complete pairs are silently skipped.
 
-last_year       <- max(all_data$anio)
-last_year_data  <- dplyr::filter(all_data, anio == last_year, !is.na(valor_mm))
+available_years <- sort(unique(all_data$anio))
+last_year       <- max(available_years)
 
 indicator_meta <- list(
   traslado           = "Tiempo de traslado (>1h al CS)",
@@ -122,22 +122,28 @@ indicator_meta <- list(
   transporte         = "Transporte subsidiado"
 )
 
-forest_rows <- lapply(names(indicator_meta), function(ind_key) {
-  vals <- dplyr::pull(last_year_data, ind_key)
-  mm   <- last_year_data$valor_mm
-  res  <- spearman_ci(vals, mm)
-  tibble::tibble(
-    indicador   = ind_key,
-    label       = indicator_meta[[ind_key]],
-    correlacion = res$rho,
-    ci_lower    = res$ci_lower,
-    ci_upper    = res$ci_upper,
-    p_value     = res$p_value,
-    n           = as.integer(res$n)
-  )
+forest_rows_list <- lapply(available_years, function(yr) {
+  yr_data <- dplyr::filter(all_data, anio == yr, !is.na(valor_mm))
+  rows <- lapply(names(indicator_meta), function(ind_key) {
+    vals <- dplyr::pull(yr_data, ind_key)
+    mm   <- yr_data$valor_mm
+    res  <- spearman_ci(vals, mm)
+    if (is.na(res$rho)) return(NULL)
+    tibble::tibble(
+      anio        = yr,
+      indicador   = ind_key,
+      label       = indicator_meta[[ind_key]],
+      correlacion = res$rho,
+      ci_lower    = res$ci_lower,
+      ci_upper    = res$ci_upper,
+      p_value     = res$p_value,
+      n           = as.integer(res$n)
+    )
+  })
+  dplyr::bind_rows(rows)
 })
 
-mock_forest_plot <- dplyr::bind_rows(forest_rows)
+mock_forest_plot <- dplyr::bind_rows(forest_rows_list)
 
 # ── 5. Analytics maternal: annual weighted means ──────────────────────────────
 
@@ -196,7 +202,10 @@ write_csv(mock_scatter_maternal,   file.path(csv_dir, "mock_scatter_maternal.csv
 
 message("✅ mock_forest_plot, mock_analytics_maternal, mock_scatter_maternal saved")
 
-# ── 8. Bivariate GeoJSONs ─────────────────────────────────────────────────────
+# ── 8. Per-year bivariate and maternal GeoJSONs ───────────────────────────────
+#
+# Generates one GeoJSON per (indicator, year) and one per year for maternal-only.
+# Years or indicators with no data produce a GeoJSON with all NA values (grey).
 
 # Bivariate colour palette — rows = MM tercile (0=low,1=med,2=high),
 #                             cols = indicator tercile (0=low,1=med,2=high)
@@ -210,20 +219,14 @@ bivariate_colors <- matrix(c(
 geojson_path <- file.path(output_dir, "geojson", "SMV_municipalities.geojson")
 smv_sf <- sf::st_read(geojson_path, quiet = TRUE)
 
-# Last-year barrio values for map generation
-map_data <- dplyr::filter(all_data, anio == last_year) |>
-  dplyr::rename(territorio = NAME_2)
+ylord <- RColorBrewer::brewer.pal(5, "YlOrRd")
 
-mm_last_map <- map_data |>
-  dplyr::select(territorio, valor_mm) |>
-  dplyr::mutate(mm_class = classify_tercile(valor_mm))
-
-make_bivariate_geojson <- function(ind_col, out_name) {
-  ind_df <- map_data |>
+make_bivariate_geojson <- function(ind_col, out_name, map_data_yr, mm_last_map_yr) {
+  ind_df <- map_data_yr |>
     dplyr::select(territorio, value = !!rlang::sym(ind_col)) |>
     dplyr::left_join(
-      mm_last_map |> dplyr::select(territorio, maternal_value = valor_mm,
-                                   maternal_class = mm_class),
+      mm_last_map_yr |> dplyr::select(territorio, maternal_value = valor_mm,
+                                      maternal_class = mm_class),
       by = "territorio"
     ) |>
     dplyr::mutate(
@@ -249,57 +252,59 @@ make_bivariate_geojson <- function(ind_col, out_name) {
   message(paste0("✅ ", out_name))
 }
 
-make_bivariate_geojson("traslado",           "mock_bivariate_traslado.geojson")
-make_bivariate_geojson("empleo_informal",    "mock_bivariate_empleo_informal.geojson")
-make_bivariate_geojson("sobrecarga",         "mock_bivariate_sobrecarga.geojson")
-make_bivariate_geojson("cobertura_programa", "mock_bivariate_cobertura_programa.geojson")
-make_bivariate_geojson("transporte",         "mock_bivariate_transporte.geojson")
+make_maternal_only_geojson <- function(out_name, mm_last_map_yr) {
+  mm_values <- mm_last_map_yr$valor_mm
+  mm_breaks <- stats::quantile(mm_values, probs = seq(0, 1, length.out = 6), na.rm = TRUE)
+  mm_breaks <- unique(mm_breaks)
 
-# Maternal-only GeoJSON (YlOrRd single-variable palette)
-ylord <- RColorBrewer::brewer.pal(5, "YlOrRd")
-
-mm_values  <- mm_last_map$valor_mm
-mm_breaks  <- stats::quantile(mm_values, probs = seq(0, 1, length.out = 6), na.rm = TRUE)
-mm_breaks  <- unique(mm_breaks)
-
-maternal_only_sf <- smv_sf |>
-  dplyr::select(NAME_2, geometry) |>
-  dplyr::left_join(
-    mm_last_map |> dplyr::select(territorio, value = valor_mm),
-    by = c("NAME_2" = "territorio")
-  ) |>
-  dplyr::mutate(
-    color = {
-      if (length(mm_breaks) < 2) {
-        dplyr::if_else(is.na(value), "#CCCCCC", ylord[3L])
-      } else {
-        cls <- as.integer(cut(value, breaks = mm_breaks,
-                              include.lowest = TRUE, labels = FALSE))
-        dplyr::if_else(is.na(cls), "#CCCCCC", ylord[cls])
+  maternal_only_sf <- smv_sf |>
+    dplyr::select(NAME_2, geometry) |>
+    dplyr::left_join(
+      mm_last_map_yr |> dplyr::select(territorio, value = valor_mm),
+      by = c("NAME_2" = "territorio")
+    ) |>
+    dplyr::mutate(
+      color = {
+        if (length(mm_breaks) < 2) {
+          dplyr::if_else(is.na(value), "#CCCCCC", ylord[3L])
+        } else {
+          cls <- as.integer(cut(value, breaks = mm_breaks,
+                                include.lowest = TRUE, labels = FALSE))
+          dplyr::if_else(is.na(cls), "#CCCCCC", ylord[cls])
+        }
       }
-    }
-  ) |>
-  dplyr::select(NAME_2, value, color, geometry)
+    ) |>
+    dplyr::select(NAME_2, value, color, geometry)
 
-sf::st_write(
-  maternal_only_sf,
-  file.path(output_dir, "geojson", "mock_maternal_mortality.geojson"),
-  delete_dsn = TRUE, quiet = TRUE
-)
-message("✅ mock_maternal_mortality.geojson")
+  out_path <- file.path(output_dir, "geojson", out_name)
+  sf::st_write(maternal_only_sf, out_path, delete_dsn = TRUE, quiet = TRUE)
+  message(paste0("✅ ", out_name))
+}
 
-# ── 9. DSS Bivariate GeoJSONs (all ordered indicator pairs) ──────────────────
+for (yr in available_years) {
+  map_data_yr <- dplyr::filter(all_data, anio == yr) |>
+    dplyr::rename(territorio = NAME_2)
+
+  mm_last_map_yr <- map_data_yr |>
+    dplyr::select(territorio, valor_mm) |>
+    dplyr::mutate(mm_class = classify_tercile(valor_mm))
+
+  make_bivariate_geojson("traslado",           paste0("mock_bivariate_traslado_",           yr, ".geojson"), map_data_yr, mm_last_map_yr)
+  make_bivariate_geojson("empleo_informal",    paste0("mock_bivariate_empleo_informal_",    yr, ".geojson"), map_data_yr, mm_last_map_yr)
+  make_bivariate_geojson("sobrecarga",         paste0("mock_bivariate_sobrecarga_",         yr, ".geojson"), map_data_yr, mm_last_map_yr)
+  make_bivariate_geojson("cobertura_programa", paste0("mock_bivariate_cobertura_programa_", yr, ".geojson"), map_data_yr, mm_last_map_yr)
+  make_bivariate_geojson("transporte",         paste0("mock_bivariate_transporte_",         yr, ".geojson"), map_data_yr, mm_last_map_yr)
+
+  make_maternal_only_geojson(paste0("mock_maternal_mortality_", yr, ".geojson"), mm_last_map_yr)
+}
+
+# ── 9. Per-year DSS Bivariate GeoJSONs (all ordered indicator pairs) ──────────
 #
-# For each ordered pair (ind_x, ind_y) where ind_x ≠ ind_y:
-#   ind_x  = X-axis  (the forest-plot–selected indicator)
-#   ind_y  = Y-axis  (the second DSS indicator, replacing maternal mortality)
-#
-# File: mock_bivariate_dss_{ind_x}_{ind_y}.geojson
-# Properties: NAME_2, value (ind_x), maternal_value (ind_y),
-#             ind_class, maternal_class, color
+# For each ordered pair (ind_x, ind_y) where ind_x ≠ ind_y, and each year:
+#   File: mock_bivariate_dss_{ind_x}_{ind_y}_{year}.geojson
 
-make_dss_bivariate_geojson <- function(ind_x_col, ind_y_col, out_name) {
-  ind_df <- map_data |>
+make_dss_bivariate_geojson <- function(ind_x_col, ind_y_col, out_name, map_data_yr) {
+  ind_df <- map_data_yr |>
     dplyr::select(
       territorio,
       value          = !!rlang::sym(ind_x_col),
@@ -332,11 +337,16 @@ make_dss_bivariate_geojson <- function(ind_x_col, ind_y_col, out_name) {
 dss_indicators <- c("traslado", "empleo_informal", "sobrecarga",
                     "cobertura_programa", "transporte")
 
-for (ind_x in dss_indicators) {
-  for (ind_y in dss_indicators) {
-    if (ind_x != ind_y) {
-      out_name <- paste0("mock_bivariate_dss_", ind_x, "_", ind_y, ".geojson")
-      make_dss_bivariate_geojson(ind_x, ind_y, out_name)
+for (yr in available_years) {
+  map_data_yr <- dplyr::filter(all_data, anio == yr) |>
+    dplyr::rename(territorio = NAME_2)
+
+  for (ind_x in dss_indicators) {
+    for (ind_y in dss_indicators) {
+      if (ind_x != ind_y) {
+        out_name <- paste0("mock_bivariate_dss_", ind_x, "_", ind_y, "_", yr, ".geojson")
+        make_dss_bivariate_geojson(ind_x, ind_y, out_name, map_data_yr)
+      }
     }
   }
 }
