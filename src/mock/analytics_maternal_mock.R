@@ -298,6 +298,55 @@ for (yr in available_years) {
   make_maternal_only_geojson(paste0("mock_maternal_mortality_", yr, ".geojson"), mm_last_map_yr)
 }
 
+# ── 8.5. Per-year single-indicator GeoJSONs (one per DSS indicator) ──────────
+#
+# Generates one GeoJSON per (indicator, year) showing only that indicator's
+# values with a sequential YlOrRd colour scale.
+# File: mock_{indicator}_{year}.geojson
+
+make_indicator_only_geojson <- function(ind_col, out_name, map_data_yr) {
+  ind_df <- map_data_yr |>
+    dplyr::select(territorio, value = !!rlang::sym(ind_col))
+
+  ind_values <- ind_df$value
+  ind_breaks <- stats::quantile(ind_values, probs = seq(0, 1, length.out = 6),
+                                na.rm = TRUE)
+  ind_breaks <- unique(ind_breaks)
+
+  out_sf <- smv_sf |>
+    dplyr::select(NAME_2, geometry) |>
+    dplyr::left_join(ind_df, by = c("NAME_2" = "territorio")) |>
+    dplyr::mutate(
+      color = {
+        if (length(ind_breaks) < 2) {
+          dplyr::if_else(is.na(value), "#CCCCCC", ylord[3L])
+        } else {
+          cls <- as.integer(cut(value, breaks = ind_breaks,
+                                include.lowest = TRUE, labels = FALSE))
+          dplyr::if_else(is.na(cls), "#CCCCCC", ylord[cls])
+        }
+      }
+    ) |>
+    dplyr::select(NAME_2, value, color, geometry)
+
+  out_path <- file.path(output_dir, "geojson", out_name)
+  sf::st_write(out_sf, out_path, delete_dsn = TRUE, quiet = TRUE)
+  message(paste0("✅ ", out_name))
+}
+
+for (yr in available_years) {
+  map_data_yr <- dplyr::filter(all_data, anio == yr) |>
+    dplyr::rename(territorio = NAME_2)
+
+  make_indicator_only_geojson("traslado",           paste0("mock_traslado_",           yr, ".geojson"), map_data_yr)
+  make_indicator_only_geojson("empleo_informal",    paste0("mock_empleo_informal_",    yr, ".geojson"), map_data_yr)
+  make_indicator_only_geojson("sobrecarga",         paste0("mock_sobrecarga_",         yr, ".geojson"), map_data_yr)
+  make_indicator_only_geojson("cobertura_programa", paste0("mock_cobertura_programa_", yr, ".geojson"), map_data_yr)
+  make_indicator_only_geojson("transporte",         paste0("mock_transporte_",         yr, ".geojson"), map_data_yr)
+}
+
+message("✅ Single-indicator GeoJSONs saved")
+
 # ── 9. Per-year DSS Bivariate GeoJSONs (all ordered indicator pairs) ──────────
 #
 # For each ordered pair (ind_x, ind_y) where ind_x ≠ ind_y, and each year:
