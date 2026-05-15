@@ -54,6 +54,15 @@ smv_base <- read_csv(sim_csv_file, show_col_types = FALSE) %>%
     )
   )
 
+territorios_excluir <- c(
+  "Colombia",
+  "Baraya",
+  "San Agustín"
+)
+
+smv_base <- smv_base %>%
+  filter(!NAME_2 %in% territorios_excluir)
+
 if (!all(c("NAME_2", "tipo_zona") %in% names(smv_base))) {
   stop("El archivo SMV_map.csv debe contener las columnas 'NAME_2' y 'tipo_zona'.")
 }
@@ -105,7 +114,23 @@ base <- expand_grid(
   )
 
 # ---------------------------
-# 7. Simular nacidos vivos
+# 7.1 Variabilidad barrio-año
+# ---------------------------
+set.seed(999)
+
+shock_barrio_anual <- expand_grid(
+  NAME_2 = unique(base$NAME_2),
+  anio = unique(base$anio)
+) %>%
+  mutate(
+    shock_anual_rmm = rnorm(n(), mean = 0, sd = 4)
+  )
+
+base <- base %>%
+  left_join(shock_barrio_anual, by = c("NAME_2", "anio"))
+
+# ---------------------------
+# 8. Simular nacidos vivos
 # ---------------------------
 base_peso_barrio <- smv_base %>%
   mutate(
@@ -138,7 +163,7 @@ base <- base %>%
   ungroup()
 
 # ---------------------------
-# 8. Efectos sobre riesgo de muerte materna
+# 9. Efectos sobre riesgo de muerte materna
 # ---------------------------
 efecto_zona <- c(
   "urbano"     = 1.00,
@@ -208,11 +233,12 @@ base <- base %>%
   )
 
 # ---------------------------
-# 9. Simular muertes maternas
+# 10. Simular muertes maternas
 # ---------------------------
 base <- base %>%
   mutate(
-    rmm_esperada = 45 *
+    rmm_esperada =
+      45 *
       efecto_zona[tipo_zona] *
       efecto_edad[grupo_edad] *
       efecto_etnia[etnia] *
@@ -220,7 +246,10 @@ base <- base %>%
       tendencia *
       efecto_pandemia *
       efecto_pandemia_territorial *
-      efecto_pandemia_edad,
+      efecto_pandemia_edad +
+      shock_anual_rmm,
+
+    rmm_esperada = pmax(rmm_esperada, 5),
 
     prob_muerte = rmm_esperada / 100000,
 
@@ -232,7 +261,7 @@ base <- base %>%
   )
 
 # ---------------------------
-# 10. Valor estructural por barrio
+# 11. Valor estructural por barrio
 # Usar rmm_esperada * factor_mapa para evitar ruido
 # extremo en celdas con pocos nacidos vivos
 # ---------------------------
@@ -281,6 +310,15 @@ rmm_estructural_barrio_general <- base %>%
   mutate(etnia = "Total") %>%
   rename(zona = tipo_zona)
 
+nv_barrio_etnia <- base %>%
+  group_by(anio, NAME_2, etnia) %>%
+  summarise(nacidos_vivos = sum(nacidos_vivos, na.rm = TRUE), .groups = "drop")
+
+nv_barrio_total <- base %>%
+  group_by(anio, NAME_2) %>%
+  summarise(nacidos_vivos = sum(nacidos_vivos, na.rm = TRUE), .groups = "drop") %>%
+  mutate(etnia = "Total")
+
 barrio_nivel <- bind_rows(
   rmm_estructural_barrio_etnia,
   rmm_estructural_barrio_general
@@ -289,16 +327,20 @@ barrio_nivel <- bind_rows(
     iso3 = "COL",
     cod_local = NA_character_,
     sexo = "Mujeres"
+  ) %>%
+  left_join(
+    bind_rows(nv_barrio_etnia, nv_barrio_total),
+    by = c("NAME_2", "anio", "etnia")
   )
 
 # ---------------------------
-# 11. Agregaciones municipio
+# 12. Agregaciones municipio
 # ---------------------------
 total_municipio_general <- barrio_nivel %>%
   filter(etnia == "Total") %>%
   group_by(anio) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = weighted.mean(valor, w = nacidos_vivos, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
@@ -314,7 +356,7 @@ total_municipio_etnia <- barrio_nivel %>%
   filter(etnia != "Total") %>%
   group_by(anio, etnia) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = weighted.mean(valor, w = nacidos_vivos, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
@@ -329,7 +371,7 @@ municipio_zona_general <- barrio_nivel %>%
   filter(etnia == "Total") %>%
   group_by(anio, zona) %>%
   summarise(
-    valor = mean(valor, na.rm = TRUE),
+    valor = weighted.mean(valor, w = nacidos_vivos, na.rm = TRUE),
     .groups = "drop"
   ) %>%
   mutate(
@@ -341,7 +383,7 @@ municipio_zona_general <- barrio_nivel %>%
   )
 
 # ---------------------------
-# 12. Dataset final
+# 13. Dataset final
 # ---------------------------
 tasa_mortalidad_materna_final <- bind_rows(
   total_municipio_general,
@@ -354,7 +396,7 @@ tasa_mortalidad_materna_final <- bind_rows(
   arrange(NAME_2, anio, zona, etnia)
 
 # ---------------------------
-# 13. Guardar archivos
+# 14. Guardar archivos
 # ---------------------------
 csv_dir <- file.path(output_dir, "csv")
 parquet_dir <- file.path(output_dir, "parquet")
