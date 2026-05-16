@@ -37,17 +37,19 @@ if (!file.exists(sim_csv_file)) {
 }
 
 smv_base <- read_csv(sim_csv_file, show_col_types = FALSE) %>%
+  rename(zona_base = tipo_zona) %>%
   mutate(
-    tipo_zona = case_when(
-      tipo_zona == "Urbano central" ~ "urbano",
-      tipo_zona == "Periurbano"     ~ "periurbano",
-      tipo_zona == "Rural"          ~ "rural",
-      TRUE ~ tolower(tipo_zona)
+    zona_base = case_when(
+      zona_base == "Urbano central" ~ "urbano",
+      zona_base == "Periurbano"     ~ "periurbano",
+      zona_base == "Rural"          ~ "rural",
+      TRUE ~ tolower(zona_base)
     )
-  )
+  ) %>%
+  filter(!Territorio %in% c("Colombia", "Baraya", "San Agustín"))
 
-if (!all(c("NAME_2", "tipo_zona") %in% names(smv_base))) {
-  stop("El archivo SMV_map.csv debe contener las columnas 'NAME_2' y 'tipo_zona'.")
+if (!all(c("Territorio", "zona_base") %in% names(smv_base))) {
+  stop("El archivo SMV_map.csv debe contener las columnas 'Territorio' y 'tipo_zona'.")
 }
 
 # ---------------------------
@@ -61,7 +63,7 @@ barrios_criticos <- c(
   "Nueva Esperanza",
   "Ribera Sur"
 )
-barrios_criticos <- intersect(barrios_criticos, smv_base$NAME_2)
+barrios_criticos <- intersect(barrios_criticos, smv_base$Territorio)
 
 # ---------------------------
 # 6. Leer mortalidad materna
@@ -74,10 +76,10 @@ if (!file.exists(mortalidad_csv)) {
 
 mortalidad_barrio <- read_csv(mortalidad_csv, show_col_types = FALSE) %>%
   filter(
-    NAME_2 != "San Martín del Valle",
+    Territorio != "San Martín del Valle",
     etnia != "Total"
   ) %>%
-  select(anio, NAME_2, etnia, rmm = valor) %>%
+  select(anio, Territorio, etnia, rmm = valor) %>%
   group_by(anio) %>%
   mutate(
     z_mortalidad = ifelse(
@@ -88,28 +90,28 @@ mortalidad_barrio <- read_csv(mortalidad_csv, show_col_types = FALSE) %>%
     z_mortalidad = pmin(pmax(z_mortalidad, -2), 2)
   ) %>%
   ungroup() %>%
-  select(anio, NAME_2, etnia, z_mortalidad)
+  select(anio, Territorio, etnia, z_mortalidad)
 
 # ---------------------------
 # 7. Base barrio-año-etnia
 # ---------------------------
 base <- expand_grid(
-  anio = anios,
-  NAME_2 = smv_base$NAME_2,
-  etnia = etnias
+  anio       = anios,
+  Territorio = smv_base$Territorio,
+  etnia      = etnias
 ) %>%
-  left_join(smv_base, by = "NAME_2") %>%
-  left_join(mortalidad_barrio, by = c("anio", "NAME_2", "etnia")) %>%
+  left_join(smv_base, by = "Territorio") %>%
+  left_join(mortalidad_barrio, by = c("anio", "Territorio", "etnia")) %>%
   mutate(
     z_mortalidad = ifelse(is.na(z_mortalidad), 0, z_mortalidad),
 
     prop_etnia = case_when(
-      tipo_zona == "rural"      & etnia == "Indígena"    ~ 0.45,
-      tipo_zona == "rural"      & etnia == "No indígena" ~ 0.55,
-      tipo_zona == "periurbano" & etnia == "Indígena"    ~ 0.30,
-      tipo_zona == "periurbano" & etnia == "No indígena" ~ 0.70,
-      tipo_zona == "urbano"     & etnia == "Indígena"    ~ 0.15,
-      tipo_zona == "urbano"     & etnia == "No indígena" ~ 0.85,
+      zona_base == "rural"      & etnia == "Indígena"    ~ 0.45,
+      zona_base == "rural"      & etnia == "No indígena" ~ 0.55,
+      zona_base == "periurbano" & etnia == "Indígena"    ~ 0.30,
+      zona_base == "periurbano" & etnia == "No indígena" ~ 0.70,
+      zona_base == "urbano"     & etnia == "Indígena"    ~ 0.15,
+      zona_base == "urbano"     & etnia == "No indígena" ~ 0.85,
       TRUE ~ NA_real_
     )
   )
@@ -120,17 +122,17 @@ base <- expand_grid(
 peso_barrio <- smv_base %>%
   mutate(
     peso_zona = case_when(
-      tipo_zona == "urbano"     ~ 1.80,
-      tipo_zona == "periurbano" ~ 1.20,
-      tipo_zona == "rural"      ~ 0.55,
+      zona_base == "urbano"     ~ 1.80,
+      zona_base == "periurbano" ~ 1.20,
+      zona_base == "rural"      ~ 0.55,
       TRUE ~ 1
     ),
     peso_barrio = runif(n(), 0.75, 1.25) * peso_zona
   ) %>%
-  select(NAME_2, peso_barrio)
+  select(Territorio, peso_barrio)
 
 base <- base %>%
-  left_join(peso_barrio, by = "NAME_2") %>%
+  left_join(peso_barrio, by = "Territorio") %>%
   group_by(anio) %>%
   mutate(
     embarazadas_total_anio = round(
@@ -147,37 +149,85 @@ base <- base %>%
   ungroup()
 
 # ---------------------------
-# 9. Simular sobrecarga
+# 9. Simular sobrecarga con variabilidad barrio-año
 # ---------------------------
 set.seed(4041)
+
+variabilidad_barrio_anual <- expand_grid(
+  anio       = anios,
+  Territorio = smv_base$Territorio
+) %>%
+  left_join(
+    smv_base %>% select(Territorio, zona_base),
+    by = "Territorio"
+  ) %>%
+  group_by(Territorio) %>%
+  arrange(anio, .by_group = TRUE) %>%
+  mutate(
+    ruido_anual = rnorm(
+      n(),
+      mean = 0,
+      sd = case_when(
+        zona_base == "urbano"     ~ 0.030,
+        zona_base == "periurbano" ~ 0.075,
+        zona_base == "rural"      ~ 0.095,
+        TRUE ~ 0.050
+      )
+    ),
+    ruido_persistente = as.numeric(stats::filter(
+      ruido_anual,
+      filter = 0.45,
+      method = "recursive"
+    ))
+  ) %>%
+  ungroup() %>%
+  mutate(
+    impulso_local = rbinom(
+      n(),
+      1,
+      prob = case_when(
+        zona_base == "urbano"     ~ 0.05,
+        zona_base == "periurbano" ~ 0.18,
+        zona_base == "rural"      ~ 0.22,
+        TRUE ~ 0.10
+      )
+    ),
+    efecto_impulso = impulso_local * runif(
+      n(),
+      min = 0.03,
+      max = 0.13
+    )
+  ) %>%
+  select(anio, Territorio, ruido_persistente, efecto_impulso)
 
 efecto_barrio <- smv_base %>%
   mutate(
     variabilidad_barrio = rnorm(
       n(),
       mean = case_when(
-        tipo_zona == "urbano"     ~ -0.02,
-        tipo_zona == "periurbano" ~  0.03,
-        tipo_zona == "rural"      ~  0.07,
+        zona_base == "urbano"     ~ -0.02,
+        zona_base == "periurbano" ~  0.03,
+        zona_base == "rural"      ~  0.07,
         TRUE ~ 0
       ),
       sd = 0.08
     ),
     variabilidad_barrio = case_when(
-      NAME_2 %in% barrios_criticos & tipo_zona == "rural"      ~ variabilidad_barrio + 0.10,
-      NAME_2 %in% barrios_criticos & tipo_zona == "periurbano" ~ variabilidad_barrio + 0.07,
+      Territorio %in% barrios_criticos & zona_base == "rural"      ~ variabilidad_barrio + 0.10,
+      Territorio %in% barrios_criticos & zona_base == "periurbano" ~ variabilidad_barrio + 0.07,
       TRUE ~ variabilidad_barrio
     )
   ) %>%
-  select(NAME_2, variabilidad_barrio)
+  select(Territorio, variabilidad_barrio)
 
 base <- base %>%
-  left_join(efecto_barrio, by = "NAME_2") %>%
+  left_join(efecto_barrio, by = "Territorio") %>%
+  left_join(variabilidad_barrio_anual, by = c("anio", "Territorio")) %>%
   mutate(
     prob_base_zona = case_when(
-      tipo_zona == "urbano"     ~ 0.20,
-      tipo_zona == "periurbano" ~ 0.38,
-      tipo_zona == "rural"      ~ 0.50,
+      zona_base == "urbano"     ~ 0.20,
+      zona_base == "periurbano" ~ 0.38,
+      zona_base == "rural"      ~ 0.50,
       TRUE ~ 0.35
     ),
 
@@ -195,8 +245,8 @@ base <- base %>%
     ),
 
     mejora_cuidados = case_when(
-      anio >= 2023 & tipo_zona == "urbano"     ~ -0.015,
-      anio >= 2023 & tipo_zona == "periurbano" ~ -0.010,
+      anio >= 2023 & zona_base == "urbano"     ~ -0.015,
+      anio >= 2023 & zona_base == "periurbano" ~ -0.010,
       TRUE ~ 0
     ),
 
@@ -206,7 +256,9 @@ base <- base %>%
       variabilidad_barrio +
       efecto_mortalidad +
       efecto_pandemia +
-      mejora_cuidados,
+      mejora_cuidados +
+      ruido_persistente +
+      efecto_impulso,
 
     valor_individual = pmin(pmax(valor_individual, 0.05), 0.90),
 
@@ -236,7 +288,7 @@ municipio_total <- base %>%
   calcular_indicador(anio) %>%
   mutate(
     iso3 = "COL",
-    NAME_2 = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_,
     zona = "Total",
     etnia = "Total"
@@ -246,46 +298,46 @@ municipio_total_etnia <- base %>%
   calcular_indicador(anio, etnia) %>%
   mutate(
     iso3 = "COL",
-    NAME_2 = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_,
     zona = "Total"
   )
 
 municipio_zona_total <- base %>%
-  calcular_indicador(anio, tipo_zona) %>%
+  calcular_indicador(anio, zona_base) %>%
   mutate(
     iso3 = "COL",
-    NAME_2 = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_,
     etnia = "Total"
   ) %>%
-  rename(zona = tipo_zona)
+  rename(zona = zona_base)
 
 municipio_zona_etnia <- base %>%
-  calcular_indicador(anio, tipo_zona, etnia) %>%
+  calcular_indicador(anio, zona_base, etnia) %>%
   mutate(
     iso3 = "COL",
-    NAME_2 = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_
   ) %>%
-  rename(zona = tipo_zona)
+  rename(zona = zona_base)
 
 barrio_total <- base %>%
-  calcular_indicador(anio, NAME_2, tipo_zona) %>%
+  calcular_indicador(anio, Territorio, zona_base) %>%
   mutate(
     iso3 = "COL",
     cod_local = NA_character_,
     etnia = "Total"
   ) %>%
-  rename(zona = tipo_zona)
+  rename(zona = zona_base)
 
 barrio_etnia <- base %>%
-  calcular_indicador(anio, NAME_2, tipo_zona, etnia) %>%
+  calcular_indicador(anio, Territorio, zona_base, etnia) %>%
   mutate(
     iso3 = "COL",
     cod_local = NA_character_
   ) %>%
-  rename(zona = tipo_zona)
+  rename(zona = zona_base)
 
 sobrecarga_cuidados_final <- bind_rows(
   municipio_total,
@@ -296,20 +348,17 @@ sobrecarga_cuidados_final <- bind_rows(
   barrio_etnia
 ) %>%
   mutate(valor = round(valor, 4)) %>%
-  select(iso3, NAME_2, cod_local, anio, zona, etnia, valor) %>%
-  arrange(NAME_2, anio, zona, etnia)
+  select(iso3, Territorio, cod_local, anio, zona, etnia, valor) %>%
+  arrange(Territorio, anio, zona, etnia)
 
 # ---------------------------
 # 12. Guardar archivos
 # ---------------------------
-csv_dir <- file.path(output_dir, "csv")
+csv_dir     <- file.path(output_dir, "csv")
 parquet_dir <- file.path(output_dir, "parquet")
 
-if (!dir.exists(csv_dir)) dir.create(csv_dir, recursive = TRUE)
+if (!dir.exists(csv_dir))     dir.create(csv_dir,     recursive = TRUE)
 if (!dir.exists(parquet_dir)) dir.create(parquet_dir, recursive = TRUE)
 
-archivo_csv <- file.path(csv_dir, "care_overload_municipal.csv")
-write_csv(sobrecarga_cuidados_final, archivo_csv)
-
-archivo_parquet <- file.path(parquet_dir, "care_overload_municipal.parquet")
-write_parquet(sobrecarga_cuidados_final, archivo_parquet)
+write_csv(    sobrecarga_cuidados_final, file.path(csv_dir,     "care_overload_municipal.csv"))
+write_parquet(sobrecarga_cuidados_final, file.path(parquet_dir, "care_overload_municipal.parquet"))

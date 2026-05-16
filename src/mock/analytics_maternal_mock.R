@@ -27,7 +27,7 @@ output_dir <- here("outputs")
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-# Load barrio-level rows from a parquet, keeping one row per NAME_2/anio.
+# Load barrio-level rows from a parquet, keeping one row per Territorio/anio.
 # Handles three column layouts across different indicators:
 #   - grupo_edad present  → keep rows where grupo_edad == "Todas las edades"
 #   - etnia present       → keep rows where etnia == "Total"
@@ -44,8 +44,8 @@ load_barrio <- function(filename, col_name) {
   }
 
   df |>
-    dplyr::filter(!NAME_2 %in% c("San Martín del Valle")) |>
-    dplyr::group_by(NAME_2, anio) |>
+    dplyr::filter(!Territorio %in% c("San Martín del Valle")) |>
+    dplyr::group_by(Territorio, anio) |>
     dplyr::summarise(valor = mean(valor, na.rm = TRUE), .groups = "drop") |>
     dplyr::mutate(valor = ifelse(is.nan(valor), NA_real_, valor)) |>
     dplyr::rename(!!col_name := valor)
@@ -93,9 +93,9 @@ mm_raw <- read_parquet(
 mm_barrio <- mm_raw |>
   dplyr::filter(
     etnia == "Total",
-    !NAME_2 %in% c("San Martín del Valle")
+    !Territorio %in% c("San Martín del Valle")
   ) |>
-  dplyr::select(NAME_2, anio, zona, valor_mm = valor)
+  dplyr::select(Territorio, anio, zona, valor_mm = valor)
 
 # ── 2. Load each DSS indicator's barrio-level data ────────────────────────────
 
@@ -109,12 +109,12 @@ cuidar_comunidad_df <- load_barrio("infant_care_support_municipal.parquet",   "c
 # ── 3. Join all indicators ────────────────────────────────────────────────────
 
 all_data <- mm_barrio |>
-  dplyr::left_join(traslado_df,         by = c("NAME_2", "anio")) |>
-  dplyr::left_join(empleo_df,           by = c("NAME_2", "anio")) |>
-  dplyr::left_join(sobrecarga_df,       by = c("NAME_2", "anio")) |>
-  dplyr::left_join(cobertura_df,        by = c("NAME_2", "anio")) |>
-  dplyr::left_join(transporte_df,       by = c("NAME_2", "anio")) |>
-  dplyr::left_join(cuidar_comunidad_df, by = c("NAME_2", "anio"))
+  dplyr::left_join(traslado_df,         by = c("Territorio", "anio")) |>
+  dplyr::left_join(empleo_df,           by = c("Territorio", "anio")) |>
+  dplyr::left_join(sobrecarga_df,       by = c("Territorio", "anio")) |>
+  dplyr::left_join(cobertura_df,        by = c("Territorio", "anio")) |>
+  dplyr::left_join(transporte_df,       by = c("Territorio", "anio")) |>
+  dplyr::left_join(cuidar_comunidad_df, by = c("Territorio", "anio"))
 
 # ── 4. Forest plot: Spearman correlations (all available years) ───────────────
 #
@@ -177,7 +177,7 @@ mock_analytics_maternal <- all_data |>
 # Simulate nacimientos (live births) from barrio zone – fixed per barrio
 set.seed(42)
 barrio_nacimientos <- mm_barrio |>
-  dplyr::distinct(NAME_2, zona) |>
+  dplyr::distinct(Territorio, zona) |>
   dplyr::mutate(
     nacimientos = dplyr::case_when(
       zona == "urbano"     ~ as.integer(round(stats::runif(dplyr::n(), 80, 130))),
@@ -185,11 +185,11 @@ barrio_nacimientos <- mm_barrio |>
       TRUE                 ~ as.integer(round(stats::runif(dplyr::n(), 25, 50)))
     )
   ) |>
-  dplyr::select(NAME_2, nacimientos)
+  dplyr::select(Territorio, nacimientos)
 
 mock_scatter_maternal <- all_data |>
-  dplyr::left_join(barrio_nacimientos, by = "NAME_2") |>
-  dplyr::rename(territorio = NAME_2, valor = valor_mm) |>
+  dplyr::left_join(barrio_nacimientos, by = "Territorio") |>
+  dplyr::rename(territorio = Territorio, valor = valor_mm) |>
   dplyr::select(
     anio, territorio, valor,
     traslado, empleo_informal, sobrecarga, cobertura_programa, transporte,
@@ -255,9 +255,9 @@ make_bivariate_geojson <- function(ind_col, out_name, map_data_yr, mm_last_map_y
     )
 
   out_sf <- smv_sf |>
-    dplyr::select(NAME_2, geometry) |>
-    dplyr::left_join(ind_df, by = c("NAME_2" = "territorio")) |>
-    dplyr::select(NAME_2, value, maternal_value, maternal_class, ind_class,
+    dplyr::select(Territorio, geometry) |>
+    dplyr::left_join(ind_df, by = c("Territorio" = "territorio")) |>
+    dplyr::select(Territorio, value, maternal_value, maternal_class, ind_class,
                   color, geometry)
 
   out_path <- file.path(output_dir, "geojson", out_name)
@@ -271,10 +271,10 @@ make_maternal_only_geojson <- function(out_name, mm_last_map_yr) {
   mm_breaks <- unique(mm_breaks)
 
   maternal_only_sf <- smv_sf |>
-    dplyr::select(NAME_2, geometry) |>
+    dplyr::select(Territorio, geometry) |>
     dplyr::left_join(
       mm_last_map_yr |> dplyr::select(territorio, value = valor_mm),
-      by = c("NAME_2" = "territorio")
+      by = c("Territorio" = "territorio")
     ) |>
     dplyr::mutate(
       color = {
@@ -287,7 +287,7 @@ make_maternal_only_geojson <- function(out_name, mm_last_map_yr) {
         }
       }
     ) |>
-    dplyr::select(NAME_2, value, color, geometry)
+    dplyr::select(Territorio, value, color, geometry)
 
   out_path <- file.path(output_dir, "geojson", out_name)
   sf::st_write(maternal_only_sf, out_path, delete_dsn = TRUE, quiet = TRUE)
@@ -296,7 +296,7 @@ make_maternal_only_geojson <- function(out_name, mm_last_map_yr) {
 
 for (yr in available_years) {
   map_data_yr <- dplyr::filter(all_data, anio == yr) |>
-    dplyr::rename(territorio = NAME_2)
+    dplyr::rename(territorio = Territorio)
 
   mm_last_map_yr <- map_data_yr |>
     dplyr::select(territorio, valor_mm) |>
@@ -328,8 +328,8 @@ make_indicator_only_geojson <- function(ind_col, out_name, map_data_yr) {
   ind_breaks <- unique(ind_breaks)
 
   out_sf <- smv_sf |>
-    dplyr::select(NAME_2, geometry) |>
-    dplyr::left_join(ind_df, by = c("NAME_2" = "territorio")) |>
+    dplyr::select(Territorio, geometry) |>
+    dplyr::left_join(ind_df, by = c("Territorio" = "territorio")) |>
     dplyr::mutate(
       color = {
         if (length(ind_breaks) < 2) {
@@ -341,7 +341,7 @@ make_indicator_only_geojson <- function(ind_col, out_name, map_data_yr) {
         }
       }
     ) |>
-    dplyr::select(NAME_2, value, color, geometry)
+    dplyr::select(Territorio, value, color, geometry)
 
   out_path <- file.path(output_dir, "geojson", out_name)
   sf::st_write(out_sf, out_path, delete_dsn = TRUE, quiet = TRUE)
@@ -350,7 +350,7 @@ make_indicator_only_geojson <- function(ind_col, out_name, map_data_yr) {
 
 for (yr in available_years) {
   map_data_yr <- dplyr::filter(all_data, anio == yr) |>
-    dplyr::rename(territorio = NAME_2)
+    dplyr::rename(territorio = Territorio)
 
   make_indicator_only_geojson("traslado",           paste0("mock_traslado_",           yr, ".geojson"), map_data_yr)
   make_indicator_only_geojson("empleo_informal",    paste0("mock_empleo_informal_",    yr, ".geojson"), map_data_yr)
@@ -388,9 +388,9 @@ make_dss_bivariate_geojson <- function(ind_x_col, ind_y_col, out_name, map_data_
     )
 
   out_sf <- smv_sf |>
-    dplyr::select(NAME_2, geometry) |>
-    dplyr::left_join(ind_df, by = c("NAME_2" = "territorio")) |>
-    dplyr::select(NAME_2, value, maternal_value, maternal_class, ind_class,
+    dplyr::select(Territorio, geometry) |>
+    dplyr::left_join(ind_df, by = c("Territorio" = "territorio")) |>
+    dplyr::select(Territorio, value, maternal_value, maternal_class, ind_class,
                   color, geometry)
 
   out_path <- file.path(output_dir, "geojson", out_name)
@@ -403,7 +403,7 @@ dss_indicators <- c("traslado", "empleo_informal", "sobrecarga",
 
 for (yr in available_years) {
   map_data_yr <- dplyr::filter(all_data, anio == yr) |>
-    dplyr::rename(territorio = NAME_2)
+    dplyr::rename(territorio = Territorio)
 
   for (ind_x in dss_indicators) {
     for (ind_y in dss_indicators) {

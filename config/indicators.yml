@@ -87,7 +87,7 @@ maternal_mortality_rate:
     columns:
       - name: "iso3"
         type: "character"
-      - name: "NAME_2"
+      - name: "Territorio"
         type: "character"
       - name: "cod_local"
         type: "character"
@@ -124,7 +124,7 @@ journey_time:
     columns:
       - name: "iso3"
         type: "character"
-      - name: "NAME_2"
+      - name: "Territorio"
         type: "character"
       - name: "cod_local"
         type: "character"
@@ -161,7 +161,7 @@ informal_employment:
     columns:
       - name: "iso3"
         type: "character"
-      - name: "NAME_2"
+      - name: "Territorio"
         type: "character"
       - name: "cod_local"
         type: "character"
@@ -196,7 +196,7 @@ program_cover:
     columns:
       - name: "iso3"
         type: "character"
-      - name: "NAME_2"
+      - name: "Territorio"
         type: "character"
       - name: "cod_local"
         type: "character"
@@ -250,7 +250,7 @@ infant_care_support:
     columns:
       - name: "iso3"
         type: "character"
-      - name: "NAME_2"
+      - name: "Territorio"
         type: "character"
       - name: "cod_local"
         type: "character"

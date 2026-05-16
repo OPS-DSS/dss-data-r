@@ -125,14 +125,14 @@ process_SMV_map <- function(output_dir = here("outputs")) {
   # Convert to sf, keep only the columns the frontend needs
   SMV_sf <- sf::st_as_sf(SMV_muni)
   SMV_sf <- SMV_sf[, c("barrio", "tipo_zona", "mock_value", "color", "geometry")]
-  names(SMV_sf)[names(SMV_sf) == "barrio"] <- "NAME_2"
+  names(SMV_sf)[names(SMV_sf) == "barrio"] <- "Territorio"
 
   sf::st_write(SMV_sf, geojson_file, delete_dsn = TRUE)
 
   # Tabular CSV (no geometry)
   SMV_df <- as.data.frame(SMV_muni) |>
     dplyr::select(barrio, tipo_zona, mock_value, color)
-  names(SMV_df)[names(SMV_df) == "barrio"] <- "NAME_2"
+  names(SMV_df)[names(SMV_df) == "barrio"] <- "Territorio"
 
   write_csv(SMV_df, csv_file)
 

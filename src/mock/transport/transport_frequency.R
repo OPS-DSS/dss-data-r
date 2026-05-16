@@ -1,7 +1,7 @@
 # =========================================================
 # San Martín del Valle - Frecuencia de transporte público subsidiado
-# Cobertura hacia centros de salud desde barrios periféricos
-# Estratificadores: zona, etnia
+# Cobertura hacia centros de salud
+# Tendencia al alza; estratificado por zona y etnia
 # =========================================================
 
 # ---------------------------
@@ -26,7 +26,7 @@ library(arrow)
 # ---------------------------
 # 3. Semilla
 # ---------------------------
-set.seed(4321)
+set.seed(6060)
 
 # ---------------------------
 # 4. Leer base territorial
@@ -38,228 +38,234 @@ if (!file.exists(sim_csv_file)) {
 }
 
 smv_base <- read_csv(sim_csv_file, show_col_types = FALSE) %>%
+  rename(zona_base = tipo_zona) %>%
   mutate(
-    tipo_zona = case_when(
-      tipo_zona == "Urbano central" ~ "urbano",
-      tipo_zona == "Periurbano" ~ "periurbano",
-      tipo_zona == "Rural" ~ "rural",
-      TRUE ~ tolower(tipo_zona)
+    zona_base = case_when(
+      zona_base %in% c("Urbano central", "urbano", "Urbano") ~ "Urbano",
+      zona_base %in% c("Periurbano", "periurbano")           ~ "Periurbano",
+      zona_base %in% c("Rural", "rural")                     ~ "Rural",
+      TRUE ~ zona_base
     )
-  )
+  ) %>%
+  filter(!Territorio %in% c("Colombia", "Baraya", "San Agustín"))
 
-if (!all(c("NAME_2", "tipo_zona") %in% names(smv_base))) {
-  stop("El archivo SMV_map.csv debe contener las columnas 'NAME_2' y 'tipo_zona'.")
+if (!all(c("Territorio", "zona_base") %in% names(smv_base))) {
+  stop("El archivo SMV_map.csv debe contener las columnas 'Territorio' y 'tipo_zona'.")
 }
 
 # ---------------------------
 # 5. Parámetros generales
 # ---------------------------
-anios <- 2016:2025
+anios  <- 2016:2025
 etnias <- c("Indígena", "No indígena")
 
-# Barrios con mejoras focalizadas en rutas de transporte
-barrios_focalizados <- c("El Mirador", "Los Pinos", "Nueva Esperanza")
-barrios_focalizados <- intersect(barrios_focalizados, smv_base$NAME_2)
+# ---------------------------
+# 6. Efecto aleatorio por barrio-año (ruido persistente + hotspot)
+# ---------------------------
+set.seed(6061)
 
-# ---------------------------
-# 6. Base barrio-año-etnia
-# ---------------------------
-base <- expand_grid(
-  anio   = anios,
-  NAME_2 = smv_base$NAME_2,
-  etnia  = etnias
+efecto_barrio_anual <- expand_grid(
+  anio       = anios,
+  Territorio = smv_base$Territorio
 ) %>%
-  left_join(smv_base, by = "NAME_2") %>%
-  mutate(
-    prop_etnia = case_when(
-      tipo_zona == "rural" & etnia == "Indígena" ~ 0.45,
-      tipo_zona == "rural" & etnia == "No indígena" ~ 0.55,
-      tipo_zona == "periurbano" & etnia == "Indígena" ~ 0.30,
-      tipo_zona == "periurbano" & etnia == "No indígena" ~ 0.70,
-      tipo_zona == "urbano" & etnia == "Indígena" ~ 0.15,
-      tipo_zona == "urbano" & etnia == "No indígena" ~ 0.85,
-      TRUE ~ NA_real_
-    )
-  )
-
-# ---------------------------
-# 7. Denominador embarazadas
-# ---------------------------
-peso_barrio <- smv_base %>%
-  mutate(
-    peso_zona = case_when(
-      tipo_zona == "urbano" ~ 1.80,
-      tipo_zona == "periurbano" ~ 1.20,
-      tipo_zona == "rural" ~ 0.55,
-      TRUE ~ 1
-    ),
-    peso_barrio = runif(n(), 0.75, 1.25) * peso_zona
+  left_join(
+    smv_base %>% select(Territorio, zona_base),
+    by = "Territorio"
   ) %>%
-  select(NAME_2, peso_barrio)
-
-base <- base %>%
-  left_join(peso_barrio, by = "NAME_2") %>%
-  group_by(anio) %>%
+  group_by(Territorio) %>%
+  arrange(anio, .by_group = TRUE) %>%
   mutate(
-    embarazadas_total_anio = round(
-      case_when(
-        anio == 2020 ~ 1380,
-        anio == 2021 ~ 1420,
-        TRUE ~ 1500 - 8 * (anio - 2016)
+    ruido_anual = rnorm(
+      n(),
+      mean = 0,
+      sd = case_when(
+        zona_base == "Urbano"     ~ 0.08,
+        zona_base == "Periurbano" ~ 0.14,
+        zona_base == "Rural"      ~ 0.18,
+        TRUE                      ~ 0.10
       )
     ),
-    peso_total = peso_barrio * prop_etnia,
-    peso_total = peso_total / sum(peso_total, na.rm = TRUE),
-    embarazadas = round(embarazadas_total_anio * peso_total)
+    ruido_persistente = as.numeric(stats::filter(
+      ruido_anual,
+      filter = 0.35,
+      method = "recursive"
+    ))
   ) %>%
-  ungroup()
-
-# ---------------------------
-# 8. Efecto aleatorio por barrio
-# ---------------------------
-set.seed(4322)
-
-efecto_barrio <- smv_base %>%
+  ungroup() %>%
+  group_by(anio) %>%
   mutate(
-    variabilidad_barrio = rnorm(n(), mean = 0, sd = 0.10)
+    hotspot_temporal = rbinom(
+      n(),
+      1,
+      prob = case_when(
+        zona_base == "Urbano"     ~ 0.08,
+        zona_base == "Periurbano" ~ 0.18,
+        zona_base == "Rural"      ~ 0.22,
+        TRUE                      ~ 0.10
+      )
+    ),
+    efecto_hotspot = hotspot_temporal * runif(
+      n(),
+      min = 0.05,
+      max = 0.16
+    )
   ) %>%
-  select(NAME_2, variabilidad_barrio)
+  ungroup() %>%
+  select(anio, Territorio, ruido_persistente, efecto_hotspot)
 
 # ---------------------------
-# 9. Simulación cobertura de transporte
-# Tendencia al alza moderada + variabilidad barrial
-# Mujeres indígenas tienen leve menor acceso (barreras de accesibilidad)
+# 7. Base barrio-año-etnia
 # ---------------------------
-base <- base %>%
-  left_join(efecto_barrio, by = "NAME_2") %>%
+base <- expand_grid(
+  anio       = anios,
+  Territorio = smv_base$Territorio,
+  etnia      = etnias
+) %>%
+  left_join(smv_base, by = "Territorio") %>%
+  left_join(efecto_barrio_anual, by = c("anio", "Territorio")) %>%
   mutate(
     tendencia_anual = case_when(
-      anio == 2016 ~ 0.25,
-      anio == 2017 ~ 0.28,
-      anio == 2018 ~ 0.31,
-      anio == 2019 ~ 0.34,
-      anio == 2020 ~ 0.30,
-      anio == 2021 ~ 0.33,
-      anio == 2022 ~ 0.37,
+      anio == 2016 ~ 0.03,
+      anio == 2017 ~ 0.08,
+      anio == 2018 ~ 0.14,
+      anio == 2019 ~ 0.21,
+      anio == 2020 ~ 0.23,
+      anio == 2021 ~ 0.25,
+      anio == 2022 ~ 0.32,
       anio == 2023 ~ 0.42,
-      anio == 2024 ~ 0.46,
-      anio == 2025 ~ 0.50,
+      anio == 2024 ~ 0.50,
+      anio == 2025 ~ 0.58,
       TRUE ~ NA_real_
     ),
     efecto_zona = case_when(
-      tipo_zona == "urbano" ~ 0.15,
-      tipo_zona == "periurbano" ~ 0.00,
-      tipo_zona == "rural" ~ -0.12,
+      zona_base == "Urbano"     ~  0.01,
+      zona_base == "Periurbano" ~  0.00,
+      zona_base == "Rural"      ~ -0.01,
       TRUE ~ 0
     ),
     efecto_etnia = case_when(
-      etnia == "Indígena" ~ -0.05,
+      etnia == "Indígena" ~ -0.04,
       TRUE ~ 0
     ),
     efecto_focalizacion = case_when(
-      anio >= 2022 & NAME_2 %in% barrios_focalizados ~ 0.05,
+      anio >= 2023 & Territorio == "Ribera Sur"                          ~ 0.015,
+      anio >= 2023 & Territorio %in% c("El Progreso", "Nueva Esperanza") ~ 0.008,
       TRUE ~ 0
     ),
     valor_individual =
       tendencia_anual +
-        efecto_zona +
-        efecto_etnia +
-        efecto_focalizacion +
-        variabilidad_barrio,
-    valor_individual = pmin(pmax(valor_individual, 0.00), 0.95)
+      efecto_zona +
+      efecto_etnia +
+      efecto_focalizacion +
+      ruido_persistente +
+      efecto_hotspot,
+    valor_individual = pmin(pmax(valor_individual, 0.00), 0.90)
   )
 
 # ---------------------------
-# 10. Función de agregación
+# 8. Función de agregación
 # ---------------------------
 calcular_indicador <- function(data, ...) {
   data %>%
     group_by(...) %>%
     summarise(
-      valor = weighted.mean(valor_individual, w = embarazadas, na.rm = TRUE),
+      valor = mean(valor_individual, na.rm = TRUE),
       .groups = "drop"
     )
 }
 
 # ---------------------------
-# 11. Datos globales (municipio)
+# 9. Agregaciones municipio
 # ---------------------------
 municipio_total <- base %>%
   calcular_indicador(anio) %>%
   mutate(
-    iso3 = "COL", NAME_2 = "San Martín del Valle",
-    cod_local = NA_character_, zona = "Total", etnia = "Total"
+    iso3       = "COL",
+    Territorio = "San Martín del Valle",
+    cod_local  = NA_character_,
+    zona       = "Total",
+    etnia      = "Total"
   )
 
-municipio_total_etnia <- base %>%
+municipio_zona <- base %>%
+  calcular_indicador(anio, zona_base) %>%
+  mutate(
+    iso3       = "COL",
+    Territorio = "San Martín del Valle",
+    cod_local  = NA_character_,
+    etnia      = "Total"
+  ) %>%
+  rename(zona = zona_base)
+
+municipio_etnia <- base %>%
   calcular_indicador(anio, etnia) %>%
   mutate(
-    iso3 = "COL", NAME_2 = "San Martín del Valle",
-    cod_local = NA_character_, zona = "Total"
+    iso3       = "COL",
+    Territorio = "San Martín del Valle",
+    cod_local  = NA_character_,
+    zona       = "Total"
   )
 
-municipio_zona_total <- base %>%
-  calcular_indicador(anio, tipo_zona) %>%
-  mutate(
-    iso3 = "COL", NAME_2 = "San Martín del Valle",
-    cod_local = NA_character_, etnia = "Total"
-  ) %>%
-  rename(zona = tipo_zona)
-
 municipio_zona_etnia <- base %>%
-  calcular_indicador(anio, tipo_zona, etnia) %>%
+  calcular_indicador(anio, zona_base, etnia) %>%
   mutate(
-    iso3 = "COL", NAME_2 = "San Martín del Valle",
-    cod_local = NA_character_
+    iso3       = "COL",
+    Territorio = "San Martín del Valle",
+    cod_local  = NA_character_
   ) %>%
-  rename(zona = tipo_zona)
-
-global_data <- bind_rows(
-  municipio_total,
-  municipio_total_etnia,
-  municipio_zona_total,
-  municipio_zona_etnia
-) %>%
-  mutate(valor = round(valor, 4)) %>%
-  select(iso3, NAME_2, cod_local, anio, zona, etnia, valor) %>%
-  arrange(NAME_2, anio, zona, etnia)
+  rename(zona = zona_base)
 
 # ---------------------------
-# 12. Datos de barrio (municipal)
+# 10. Agregaciones barrio
 # ---------------------------
 barrio_total <- base %>%
-  calcular_indicador(anio, NAME_2, tipo_zona) %>%
+  calcular_indicador(anio, Territorio, zona_base) %>%
   mutate(
-    iso3 = "COL",
+    iso3      = "COL",
     cod_local = NA_character_,
-    etnia = "Total"
+    etnia     = "Total"
   ) %>%
-  rename(zona = tipo_zona)
+  rename(zona = zona_base)
 
 barrio_etnia <- base %>%
-  calcular_indicador(anio, NAME_2, tipo_zona, etnia) %>%
+  calcular_indicador(anio, Territorio, zona_base, etnia) %>%
   mutate(
-    iso3 = "COL",
+    iso3      = "COL",
     cod_local = NA_character_
   ) %>%
-  rename(zona = tipo_zona)
+  rename(zona = zona_base)
 
-municipal_data <- bind_rows(barrio_total, barrio_etnia) %>%
+# ---------------------------
+# 11. Output final
+# ---------------------------
+transport_frequency_final <- bind_rows(
+  municipio_total,
+  municipio_zona,
+  municipio_etnia,
+  municipio_zona_etnia,
+  barrio_total,
+  barrio_etnia
+) %>%
   mutate(valor = round(valor, 4)) %>%
-  select(iso3, NAME_2, cod_local, anio, zona, etnia, valor) %>%
-  arrange(NAME_2, anio, zona, etnia)
+  select(iso3, Territorio, cod_local, anio, zona, etnia, valor) %>%
+  arrange(Territorio, anio, zona, etnia)
 
 # ---------------------------
-# 13. Guardar archivos
+# 12. Guardar archivos
 # ---------------------------
-csv_dir <- file.path(output_dir, "csv")
+csv_dir     <- file.path(output_dir, "csv")
 parquet_dir <- file.path(output_dir, "parquet")
 
-if (!dir.exists(csv_dir)) dir.create(csv_dir, recursive = TRUE)
+if (!dir.exists(csv_dir))     dir.create(csv_dir,     recursive = TRUE)
 if (!dir.exists(parquet_dir)) dir.create(parquet_dir, recursive = TRUE)
 
-write_csv(global_data, file.path(csv_dir, "transport_frequency.csv"))
-write_parquet(global_data, file.path(parquet_dir, "transport_frequency.parquet"))
+# Global + barrio combined (used by filterEtniaStratifiedRows in the frontend)
+write_csv(    transport_frequency_final, file.path(csv_dir,     "transport_frequency.csv"))
+write_parquet(transport_frequency_final, file.path(parquet_dir, "transport_frequency.parquet"))
 
-write_csv(municipal_data, file.path(csv_dir, "transport_frequency_municipal.csv"))
-write_parquet(municipal_data, file.path(parquet_dir, "transport_frequency_municipal.parquet"))
+# Municipal/barrio subset for analytics scatter (excludes San Martín del Valle aggregate)
+transport_municipal <- transport_frequency_final %>%
+  filter(Territorio != "San Martín del Valle", etnia == "Total")
+
+write_csv(    transport_municipal, file.path(csv_dir,     "transport_frequency_municipal.csv"))
+write_parquet(transport_municipal, file.path(parquet_dir, "transport_frequency_municipal.parquet"))

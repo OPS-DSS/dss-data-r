@@ -63,10 +63,10 @@ territorios_excluir <- c(
 )
 
 smv_base <- smv_base %>%
-  filter(!NAME_2 %in% territorios_excluir)
+  filter(!Territorio %in% territorios_excluir)
 
-if (!all(c("NAME_2", "tipo_zona") %in% names(smv_base))) {
-  stop("El archivo SMV_map.csv debe contener las columnas 'NAME_2' y 'tipo_zona'.")
+if (!all(c("Territorio", "tipo_zona") %in% names(smv_base))) {
+  stop("El archivo SMV_map.csv debe contener las columnas 'Territorio' y 'tipo_zona'.")
 }
 
 # ---------------------------
@@ -85,18 +85,18 @@ barrios_criticos <- c(
   "Santa Lucía"
 )
 
-barrios_criticos <- intersect(barrios_criticos, smv_base$NAME_2)
+barrios_criticos <- intersect(barrios_criticos, smv_base$Territorio)
 
 # ---------------------------
 # 7. Base de simulación
 # ---------------------------
 base <- expand_grid(
-  anio    = anios,
-  NAME_2  = smv_base$NAME_2,
+  anio       = anios,
+  Territorio = smv_base$Territorio,
   grupo_edad = grupos_edad,
-  etnia   = etnias
+  etnia      = etnias
 ) %>%
-  left_join(smv_base, by = "NAME_2")
+  left_join(smv_base, by = "Territorio")
 
 # ---------------------------
 # 7.1 Riesgo espacial-temporal barrio-año
@@ -121,23 +121,23 @@ riesgo_estructural_barrio <- smv_base %>%
       )
     ),
     riesgo_estructural = case_when(
-      NAME_2 %in% barrios_criticos ~ riesgo_estructural + 0.45,
+      Territorio %in% barrios_criticos ~ riesgo_estructural + 0.45,
       TRUE ~ riesgo_estructural
     )
   ) %>%
-  select(NAME_2, tipo_zona, riesgo_estructural)
+  select(Territorio, tipo_zona, riesgo_estructural)
 
 hotspots_persistentes <- riesgo_estructural_barrio %>%
   filter(tipo_zona %in% c("periurbano", "rural")) %>%
   slice_sample(prop = 0.25) %>%
-  pull(NAME_2)
+  pull(Territorio)
 
 shock_barrio_anual <- expand_grid(
-  NAME_2 = smv_base$NAME_2,
-  anio   = anios
+  Territorio = smv_base$Territorio,
+  anio       = anios
 ) %>%
-  left_join(riesgo_estructural_barrio, by = "NAME_2") %>%
-  group_by(NAME_2) %>%
+  left_join(riesgo_estructural_barrio, by = "Territorio") %>%
+  group_by(Territorio) %>%
   arrange(anio, .by_group = TRUE) %>%
   mutate(
     ruido_anual = rnorm(
@@ -177,8 +177,8 @@ shock_barrio_anual <- expand_grid(
       sd = 0.35
     ),
     efecto_persistente = case_when(
-      NAME_2 %in% hotspots_persistentes & anio %in% c(2019, 2020, 2021) ~ 0.75,
-      NAME_2 %in% hotspots_persistentes & anio == 2022 ~ 0.35,
+      Territorio %in% hotspots_persistentes & anio %in% c(2019, 2020, 2021) ~ 0.75,
+      Territorio %in% hotspots_persistentes & anio == 2022 ~ 0.35,
       TRUE ~ 0
     ),
     efecto_pandemia_local = case_when(
@@ -204,10 +204,10 @@ shock_barrio_anual <- expand_grid(
     shock_factor_anual = pmin(pmax(shock_factor_anual, 0.35), 4.50)
   ) %>%
   ungroup() %>%
-  select(NAME_2, anio, shock_factor_anual, riesgo_latente, hotspot_dinamico)
+  select(Territorio, anio, shock_factor_anual, riesgo_latente, hotspot_dinamico)
 
 base <- base %>%
-  left_join(shock_barrio_anual, by = c("NAME_2", "anio")) %>%
+  left_join(shock_barrio_anual, by = c("Territorio", "anio")) %>%
   mutate(
     prop_etnia = case_when(
       tipo_zona == "rural"      & etnia == "Indígena"    ~ 0.45,
@@ -240,10 +240,10 @@ base_peso_barrio <- smv_base %>%
     ),
     peso_barrio = runif(n(), 0.75, 1.25) * peso_zona
   ) %>%
-  select(NAME_2, peso_barrio)
+  select(Territorio, peso_barrio)
 
 base <- base %>%
-  left_join(base_peso_barrio, by = "NAME_2") %>%
+  left_join(base_peso_barrio, by = "Territorio") %>%
   group_by(anio) %>%
   mutate(
     nv_total_anio = round(
@@ -294,16 +294,16 @@ efecto_barrio <- smv_base %>%
       sdlog = 0.12
     ),
     efecto_barrio = case_when(
-      NAME_2 %in% barrios_criticos & tipo_zona == "rural"      ~ efecto_barrio * 1.45,
-      NAME_2 %in% barrios_criticos & tipo_zona == "periurbano" ~ efecto_barrio * 1.35,
-      NAME_2 %in% barrios_criticos & tipo_zona == "urbano"     ~ efecto_barrio * 1.20,
+      Territorio %in% barrios_criticos & tipo_zona == "rural"      ~ efecto_barrio * 1.45,
+      Territorio %in% barrios_criticos & tipo_zona == "periurbano" ~ efecto_barrio * 1.35,
+      Territorio %in% barrios_criticos & tipo_zona == "urbano"     ~ efecto_barrio * 1.20,
       TRUE ~ efecto_barrio
     )
   ) %>%
-  select(NAME_2, efecto_barrio)
+  select(Territorio, efecto_barrio)
 
 base <- base %>%
-  left_join(efecto_barrio, by = "NAME_2") %>%
+  left_join(efecto_barrio, by = "Territorio") %>%
   mutate(
     tendencia = 1 - 0.015 * (anio - 2016),
 
@@ -315,9 +315,9 @@ base <- base %>%
     ),
 
     efecto_pandemia_territorial = case_when(
-      anio == 2020 & NAME_2 %in% barrios_criticos ~ 1.25,
-      anio == 2021 & NAME_2 %in% barrios_criticos ~ 1.15,
-      anio == 2022 & NAME_2 %in% barrios_criticos ~ 1.08,
+      anio == 2020 & Territorio %in% barrios_criticos ~ 1.25,
+      anio == 2021 & Territorio %in% barrios_criticos ~ 1.15,
+      anio == 2022 & Territorio %in% barrios_criticos ~ 1.08,
       TRUE ~ 1
     ),
 
@@ -372,7 +372,7 @@ tendencia_municipal <- tibble(
 
 rmm_estructural_barrio <- base %>%
   left_join(tendencia_municipal, by = "anio") %>%
-  group_by(anio, NAME_2, tipo_zona, etnia) %>%
+  group_by(anio, Territorio, tipo_zona, etnia) %>%
   summarise(
     valor_raw = weighted.mean(
       rmm_esperada,
@@ -389,11 +389,11 @@ rmm_estructural_barrio <- base %>%
   ) %>%
   ungroup() %>%
   rename(zona = tipo_zona) %>%
-  select(anio, NAME_2, zona, etnia, valor)
+  select(anio, Territorio, zona, etnia, valor)
 
 rmm_estructural_barrio_general <- base %>%
   left_join(tendencia_municipal, by = "anio") %>%
-  group_by(anio, NAME_2, tipo_zona) %>%
+  group_by(anio, Territorio, tipo_zona) %>%
   summarise(
     valor_raw = weighted.mean(
       rmm_esperada,
@@ -411,7 +411,7 @@ rmm_estructural_barrio_general <- base %>%
   ungroup() %>%
   mutate(etnia = "Total") %>%
   rename(zona = tipo_zona) %>%
-  select(anio, NAME_2, zona, etnia, valor)
+  select(anio, Territorio, zona, etnia, valor)
 
 tasa_mortalidad_materna_final <- bind_rows(
   rmm_estructural_barrio,
@@ -423,7 +423,7 @@ tasa_mortalidad_materna_final <- bind_rows(
     sexo      = "Mujeres",
     valor     = round(valor, 1)
   ) %>%
-  select(iso3, NAME_2, cod_local, anio, sexo, zona, etnia, valor)
+  select(iso3, Territorio, cod_local, anio, sexo, zona, etnia, valor)
 
 # ---------------------------
 # 12. Agregaciones municipio
@@ -437,13 +437,13 @@ total_municipio_general <- tasa_mortalidad_materna_final %>%
   ) %>%
   mutate(
     iso3      = "COL",
-    NAME_2    = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_,
     sexo      = "Mujeres",
     zona      = "Total",
     etnia     = "Total"
   ) %>%
-  select(iso3, NAME_2, cod_local, anio, sexo, zona, etnia, valor)
+  select(iso3, Territorio, cod_local, anio, sexo, zona, etnia, valor)
 
 total_municipio_etnia <- tasa_mortalidad_materna_final %>%
   filter(etnia != "Total") %>%
@@ -454,12 +454,12 @@ total_municipio_etnia <- tasa_mortalidad_materna_final %>%
   ) %>%
   mutate(
     iso3      = "COL",
-    NAME_2    = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_,
     sexo      = "Mujeres",
     zona      = "Total"
   ) %>%
-  select(iso3, NAME_2, cod_local, anio, sexo, zona, etnia, valor)
+  select(iso3, Territorio, cod_local, anio, sexo, zona, etnia, valor)
 
 municipio_zona_general <- tasa_mortalidad_materna_final %>%
   filter(etnia == "Total") %>%
@@ -470,12 +470,12 @@ municipio_zona_general <- tasa_mortalidad_materna_final %>%
   ) %>%
   mutate(
     iso3      = "COL",
-    NAME_2    = "San Martín del Valle",
+    Territorio = "San Martín del Valle",
     cod_local = NA_character_,
     sexo      = "Mujeres",
     etnia     = "Total"
   ) %>%
-  select(iso3, NAME_2, cod_local, anio, sexo, zona, etnia, valor)
+  select(iso3, Territorio, cod_local, anio, sexo, zona, etnia, valor)
 
 # ---------------------------
 # 13. Dataset final
@@ -486,7 +486,7 @@ tasa_mortalidad_materna_final <- bind_rows(
   municipio_zona_general,
   tasa_mortalidad_materna_final
 ) %>%
-  arrange(NAME_2, anio, zona, etnia)
+  arrange(Territorio, anio, zona, etnia)
 
 # ---------------------------
 # 14. Guardar archivos
