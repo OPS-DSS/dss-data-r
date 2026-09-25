@@ -20,7 +20,6 @@ library(purrr)
 ## Load data
 ```{r}
 df <- read_csv(here("outputs/csv/analytics_suaza.csv"))
-#df <- read_csv(here("../../outputs/csv/analytics_suaza.csv"))
 #glimpse(df)
 ```
 

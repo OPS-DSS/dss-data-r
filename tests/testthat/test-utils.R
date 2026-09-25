@@ -37,10 +37,10 @@ test_that("parse_indicator_numbers handles various formats", {
 # Integration tests for indicator processing
 # ==============================
 
-# packages/data-r/tests/testthat/test-indicators.R
+# tests/testthat/test-indicators.R
 
 # test_that("chronic malnutrition indicator config is valid", {
-#   config_path <- here::here("packages/data-r/config/indicators.yml")
+#   config_path <- here::here("config/indicators.yml")
 
 #   skip_if_not(file.exists(config_path), "Config file not found")
 
