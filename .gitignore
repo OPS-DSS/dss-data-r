@@ -1,5 +1,14 @@
+# Generated data: outputs/ is local-only and never versioned
+outputs/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Quarto
 /.quarto/
 **/*.quarto_ipynb
 
-outputs
+# OS
 .DS_Store

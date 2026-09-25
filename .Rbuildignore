@@ -1,3 +1,16 @@
+^renv$
+^renv\.lock$
 ^src$
 ^config$
 ^setup\.R$
+^\.Rprofile$
+^\.vscode$
+^\.github$
+^outputs$
+^analysis$
+^docker$
+^docker-compose\.yml$
+^package\.json$
+^AGENTS\.md$
+^CLAUDE\.md$
+^CONTRIBUTING\.md$
