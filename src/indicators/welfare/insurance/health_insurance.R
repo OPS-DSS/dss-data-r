@@ -14,6 +14,17 @@ library(readr)
 library(fs)
 library(glue)
 
+# Excel cells may arrive as numbers or as text in Spanish format ("1.234,5").
+parse_es_number <- function(x) {
+  if (is.numeric(x)) {
+    return(as.numeric(x))
+  }
+  readr::parse_number(
+    as.character(x),
+    locale = readr::locale(decimal_mark = ",", grouping_mark = ".")
+  )
+}
+
 process_health_insurance <- function(output_dir = here("outputs")) {
   url <- "https://www.huila.gov.co/observatoriosalud/loader.php?lServicio=Tools2&lTipo=descargas&lFuncion=descargar&idFile=84085"
 
@@ -36,7 +47,8 @@ process_health_insurance <- function(output_dir = here("outputs")) {
 
   insurance <- health_insurance_raw |>
     mutate(
-      valor = `Cobertura de aseguramiento`
+      valor = parse_es_number(`Cobertura de aseguramiento`),
+      Año   = as.integer(parse_es_number(Año))
     ) |>
     rename(
       anio            = Año,

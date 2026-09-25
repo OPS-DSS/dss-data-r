@@ -4,9 +4,12 @@
 # Reads real Suaza-level outputs for suicide mortality (main focus indicator),
 # the six education indicators, and health insurance coverage, then generates:
 #
-#   outputs/parquet/suaza_forest_plot.parquet
-#   outputs/parquet/suaza_analytics.parquet
-#   outputs/parquet/suaza_scatter.parquet
+#   outputs/{parquet,csv}/forest-plot.{parquet,csv}
+#   outputs/{parquet,csv}/analytics.{parquet,csv}
+#
+# These names are the ones the dashboard (config-generator) expects, and
+# they are the same ones the SMV mock analytics writes: never run both into
+# the same outputs/ directory.
 #
 # Run AFTER: suicide_mortality.R, education.R, and health_insurance.R have
 #            been executed (this script reads their parquet outputs).
@@ -168,4 +171,4 @@ write_parquet(suaza_analytics, file.path(parquet_dir, "analytics.parquet"))
 write_csv(suaza_forest_plot, file.path(csv_dir, "forest-plot.csv"))
 write_csv(suaza_analytics, file.path(csv_dir, "analytics.csv"))
 
-message("✅ suaza_forest_plot, suaza_analytics saved")
+message("✅ forest-plot and analytics saved (parquet + csv)")

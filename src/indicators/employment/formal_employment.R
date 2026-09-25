@@ -19,6 +19,17 @@ library(readr)
 library(fs)
 library(glue)
 
+# Excel cells may arrive as numbers or as text in Spanish format ("1.234,5").
+parse_es_number <- function(x) {
+  if (is.numeric(x)) {
+    return(as.numeric(x))
+  }
+  readr::parse_number(
+    as.character(x),
+    locale = readr::locale(decimal_mark = ",", grouping_mark = ".")
+  )
+}
+
 process_formal_employment <- function(output_dir = here("outputs")) {
   url <- "https://terridata.dnp.gov.co/assets/docs/excel/entidades/TerriData41770.xlsx.zip"
 
@@ -55,13 +66,11 @@ process_formal_employment <- function(output_dir = here("outputs")) {
       Indicador == "Porcentaje de personas ocupadas formalmente con respecto a la población total"
     ) |>
     transmute(
-      anio = as.numeric(Año),
+      anio = as.integer(parse_es_number(Año)),
       territorio = Entidad,
       # Source (TerriData) expresses this indicator as a percentage (0-100).
       # Convert to a proportion (0-1) for the dashboard.
-      valor = as.numeric(
-        gsub(",", ".", gsub("\\.", "", as.character(`Dato Numérico`)))
-      ) / 100
+      valor = parse_es_number(`Dato Numérico`) / 100
     ) |>
     filter(!is.na(anio), !is.na(valor)) |>
     arrange(territorio, anio)
