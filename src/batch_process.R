@@ -1,4 +1,4 @@
-# packages/data-r/src/batch_process.R
+# src/batch_process.R
 
 # ==============================
 # Batch Processing Script for All Indicators
@@ -8,7 +8,7 @@
 library(here)
 library(purrr)
 library(dplyr)
-source(here("packages/data-r/R/process_indicator.R"))
+source(here("R/process_indicator.R"))
 
 #' Process all configured indicators
 #'
@@ -18,7 +18,7 @@ source(here("packages/data-r/R/process_indicator.R"))
 #' @param max_workers Maximum number of parallel workers
 #' @return List of processing results
 #' @export
-process_all_indicators <- function(config_path = here("packages/data-r/config/indicators.yml"),
+process_all_indicators <- function(config_path = here("config/indicators.yml"),
                                    output_dir = here("outputs"),
                                    parallel = FALSE,
                                    max_workers = 2) {
@@ -157,8 +157,8 @@ generate_processing_report <- function(results) {
 #' @param config_path Path to indicators configuration file
 #' @param base_dir Base directory for resolving script paths
 run_indicator_scripts <- function(
-    config_path = "/workspace/packages/data-r/config/indicators.yml",
-    base_dir = "/workspace/packages/data-r") {
+    config_path = here("config/indicators.yml"),
+    base_dir = here()) {
   config <- yaml::read_yaml(config_path)
   indicator_ids <- names(config)
 

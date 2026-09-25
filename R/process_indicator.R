@@ -10,8 +10,8 @@
 #' @return List with processing results and metadata
 #' @export
 process_indicator <- function(indicator_id,
-                             config_path = "/workspace/packages/data-r/config/indicators.yml",  # Use absolute path
-                             output_dir = "/workspace/outputs",  # Use absolute path
+                             config_path = here::here("config", "indicators.yml"),
+                             output_dir = here::here("outputs"),
                              force_download = FALSE) {
 
   # Load configuration
@@ -197,7 +197,7 @@ apply_column_types <- function(df, column_specs) {
 #' @param config Indicator configuration
 #' @param output_dir Output directory
 #' @return Vector of output file paths
-save_indicator_outputs <- function(data, indicator_id, config, output_dir = "/workspace/outputs") {
+save_indicator_outputs <- function(data, indicator_id, config, output_dir = here::here("outputs")) {
 
   output_files <- character(0)
 

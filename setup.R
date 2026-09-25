@@ -3,7 +3,15 @@
 # ==============================
 # SET WORKING DIRECTORY TO PACKAGE ROOT
 # ==============================
-setwd("/workspace")
+# `Rscript path/to/setup.R` works from any directory: move to the folder that
+# contains this script (the package root). When sourced interactively, the
+# current working directory is kept.
+local({
+  file_arg <- grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+  if (length(file_arg) > 0) {
+    setwd(dirname(normalizePath(sub("^--file=", "", file_arg[1]))))
+  }
+})
 
 # ==============================
 # Initial Package Setup
