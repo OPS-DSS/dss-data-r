@@ -8,6 +8,7 @@ on:
 
 jobs:
   publish:
+    if: github.repository == 'OPS-DSS/dss-data-r'
     runs-on: ubuntu-latest
     permissions:
       contents: write
