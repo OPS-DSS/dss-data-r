@@ -6,9 +6,14 @@ LABEL description="R environment for DSS indicators processing"
 # Set working directory
 WORKDIR /workspace
 
-# geodata and RColorBrewer are not included in rocker/geospatial
-# (terra, sf, tidyverse are already pre-installed in the base image)
-RUN Rscript -e "install.packages(c('here', 'geodata', 'RColorBrewer'), repos='https://cran.rstudio.com/')"
+# Install every dependency declared in DESCRIPTION (Imports + Suggests) plus
+# the few packages that only the scripts/setup use, so a fresh image can run
+# any npm r:* command without r:setup. Packages already in rocker/geospatial
+# (tidyverse, sf, terra, devtools...) are kept as they are.
+COPY DESCRIPTION /tmp/dss.indicators/DESCRIPTION
+RUN Rscript -e "remotes::install_deps('/tmp/dss.indicators', dependencies = TRUE, upgrade = 'never')" \
+ && Rscript -e "install.packages(setdiff(c('jsonlite', 'renv', 'whisker'), rownames(installed.packages())))" \
+ && rm -rf /tmp/dss.indicators
 
 # Default command
 CMD ["R"]
