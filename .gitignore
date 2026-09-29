@@ -1,5 +1,5 @@
-# Generated data: outputs/ is local-only and never versioned
-outputs/
+# Fork: outputs/ IS versioned here — sync-dashboard-data.yml publishes it
+# to OPS-DSS/dss-dashboard-regional. (Upstream ignores outputs/.)
 
 # R
 .Rhistory

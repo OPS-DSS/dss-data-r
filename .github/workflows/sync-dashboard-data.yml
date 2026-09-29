@@ -1,0 +1,60 @@
+name: Sync dashboard data
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'outputs/csv/**'
+      - 'outputs/parquet/**'
+      - 'outputs/geojson/**'
+
+jobs:
+  sync-dashboard-data:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout data repository
+        uses: actions/checkout@v4
+
+      - name: Checkout dashboard repository
+        uses: actions/checkout@v4
+        with:
+          repository: OPS-DSS/dss-dashboard-regional
+          token: ${{ secrets.DASHBOARD_SYNC_TOKEN }}
+          path: dashboard
+
+      - name: Sync CSV, Parquet and GeoJSON outputs
+        run: |
+          mkdir -p dashboard/public/data/csv
+          mkdir -p dashboard/public/data/parquet
+          mkdir -p dashboard/public/data/geojson
+
+          rsync -av --delete \
+            outputs/csv/ \
+            dashboard/public/data/csv/
+
+          rsync -av --delete \
+            outputs/parquet/ \
+            dashboard/public/data/parquet/
+
+          rsync -av --delete \
+            outputs/geojson/ \
+            dashboard/public/data/geojson/
+
+      - name: Commit dashboard data
+        working-directory: dashboard
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add public/data/csv public/data/parquet public/data/geojson
+
+          if git diff --cached --quiet; then
+            echo "No data changes to publish."
+            exit 0
+          fi
+
+          git commit -m "Sync regional indicator data"
+          git push
