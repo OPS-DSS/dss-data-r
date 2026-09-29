@@ -1,0 +1,14 @@
+# Fork: outputs/ IS versioned here — sync-dashboard-data.yml publishes it
+# to OPS-DSS/dss-dashboard-regional. (Upstream ignores outputs/.)
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# Quarto
+/.quarto/
+**/*.quarto_ipynb
+
+# OS
+.DS_Store

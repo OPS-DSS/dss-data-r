@@ -21,7 +21,7 @@ library(stringi)
 
 ## Load and clean suicide data
 ```{r}
-suicide <- read_csv(here("../../outputs/csv/suicide_huila.csv")) |>
+suicide <- read_csv(here("outputs/csv/suicide_huila.csv")) |>
   filter(
     sexo == "Total",
     !territorio %in% c("Huila", "Nacional")

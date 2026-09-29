@@ -1,7 +1,7 @@
 # ==============================
-# DSS Indicator: Suicide Mortality - Huila
+# DSS Indicator: Suicide Mortality - Suaza
 # ==============================
-# Source: Observatorio de Salud del Huila
+# Source: Observatorio de Salud de Suaza
 # Indicator: Mortalidad por suicidio (por 100.000 hab.)
 # Stratifier: sexo (gender)
 # ==============================
@@ -13,14 +13,14 @@ library(arrow)
 library(readr)
 library(fs)
 library(glue)
-source(here("packages/data-r/R/util_gaps.R"))
+source(here("R/util_gaps.R"))
 
-process_suicide_huila <- function(output_dir = here("outputs")) {
+process_suicide <- function(output_dir = here("outputs")) {
   url <- "https://www.huila.gov.co/observatoriosalud/loader.php?lServicio=Tools2&lTipo=descargas&lFuncion=descargar&idFile=84079"
 
-  temp_file <- tempfile(fileext = ".xlsx")
+  temp_file <- tempfile()
 
-  message("⬇️ Downloading suicide mortality data from Huila observatory...")
+  message("⬇️ Downloading suicide mortality data from Suaza observatory...")
   tryCatch(
     download.file(
       url = url, destfile = temp_file,
@@ -49,43 +49,32 @@ process_suicide_huila <- function(output_dir = here("outputs")) {
       territorio      = Territorio
     ) |>
     select(
-      iso3,
       territorio,
-      cod_subnacional,
       cod_local,
       anio,
       sexo,
-      valor,
-      indicador
-    )
-
-  # filter(!is.na(valor), !is.na(anio), cod_local == "41770 - Suaza")
-
-  brecha_sexo <- calcular_brechas(
-    data = suicidio,
-    var_estrato = sexo,
-    var_valor = valor,
-    grupo_ref = "Femenino",
-    grupo_comp = "Masculino",
-    var_anio = anio,
-    var_territorio = territorio,
-    territorios = c("Nacional", "Huila", "Suaza")
-  )
+      valor
+    ) |>
+    filter(!is.na(valor), !is.na(anio), cod_local == "41770 - Suaza")
 
   # Create output directories
-  dir_create(file.path(output_dir, "csv"))
-  dir_create(file.path(output_dir, "parquet"))
+  csv_dir <- file.path(output_dir, "csv")
+  parquet_dir <- file.path(output_dir, "parquet")
+
+  if (!dir.exists(csv_dir)) {
+    dir.create(csv_dir, recursive = TRUE)
+  }
+
+  if (!dir.exists(parquet_dir)) {
+    dir.create(parquet_dir, recursive = TRUE)
+  }
 
   # Save outputs
-  suicide_csv_file <- file.path(output_dir, "csv", "suicide_mortality.csv")
-  suicide_parquet_file <- file.path(output_dir, "parquet", "suicide_mortality.parquet")
-  gaps_csv_file <- file.path(output_dir, "csv", "suicide_mortality_gaps.csv")
-  gaps_parquet_file <- file.path(output_dir, "parquet", "suicide_mortality_gaps.parquet")
+  suicide_csv_file <- file.path(output_dir, "csv", "mortalidad-suicidio.csv")
+  suicide_parquet_file <- file.path(output_dir, "parquet", "mortalidad-suicidio.parquet")
 
   write_csv(suicidio, suicide_csv_file)
   write_parquet(suicidio, suicide_parquet_file)
-  write_csv(brecha_sexo, gaps_csv_file)
-  write_parquet(brecha_sexo, gaps_parquet_file)
 
   file.remove(temp_file)
 
@@ -94,17 +83,14 @@ process_suicide_huila <- function(output_dir = here("outputs")) {
   message(glue("👤 Sex categories: {paste(unique(suicidio$sexo), collapse = ', ')}"))
   message(glue("💾 CSV:     {suicide_csv_file}"))
   message(glue("💾 Parquet: {suicide_parquet_file}"))
-  message(glue("💾 Gaps CSV: {gaps_csv_file}"))
-  message(glue("💾 Gaps Parquet: {gaps_parquet_file}"))
 
   return(list(
     data         = suicidio,
-    output_files = c(suicide_csv_file, suicide_parquet_file, gaps_csv_file, gaps_parquet_file)
+    output_files = c(suicide_csv_file, suicide_parquet_file)
   ))
 }
 
-# Main execution — called from Turborepo or command line
 if (!interactive()) {
-  result <- process_suicide_huila()
-  cat("✅ Suicide mortality (Huila) processing completed\n")
+  result <- process_suicide()
+  cat("✅ Suicide mortality (Suaza) processing completed\n")
 }
