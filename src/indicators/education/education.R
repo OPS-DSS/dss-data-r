@@ -106,12 +106,14 @@ process_education_suaza <- function(output_dir = here("outputs")) {
     ) |>
     mutate(
       anio             = as.integer(a_o),
-      cobertura_bruta  = as.numeric(cobertura_bruta),
-      cobertura_neta   = as.numeric(cobertura_neta),
-      deserci_n        = as.numeric(deserci_n),
-      aprobaci_n       = as.numeric(aprobaci_n),
-      reprobaci_n      = as.numeric(reprobaci_n),
-      repitencia       = as.numeric(repitencia)
+      # Source (MEN) expresses these indicators as percentages (0-100).
+      # Convert to proportions (0-1) for the dashboard.
+      cobertura_bruta  = as.numeric(cobertura_bruta) / 100,
+      cobertura_neta   = as.numeric(cobertura_neta) / 100,
+      deserci_n        = as.numeric(deserci_n) / 100,
+      aprobaci_n       = as.numeric(aprobaci_n) / 100,
+      reprobaci_n      = as.numeric(reprobaci_n) / 100,
+      repitencia       = as.numeric(repitencia) / 100
     ) |>
     filter(!is.na(anio))
 
@@ -137,23 +139,47 @@ process_education_suaza <- function(output_dir = here("outputs")) {
   dir_create(file.path(output_dir, "csv"))
   dir_create(file.path(output_dir, "parquet"))
 
-  # Output file paths
-  csv_file     <- file.path(output_dir, "csv",     "education.csv")
-  parquet_file <- file.path(output_dir, "parquet", "education.parquet")
+  # One file per indicator, each with just anio + valor
+  indicadores <- c(
+    cobertura_bruta = "cobertura-bruta",
+    cobertura_neta  = "cobertura-neta",
+    deserci_n       = "desercion",
+    aprobaci_n      = "aprobacion",
+    reprobaci_n     = "reprobacion",
+    repitencia      = "repitencia"
+  )
 
-  write_csv(education_suaza, csv_file)
-  write_parquet(education_suaza, parquet_file)
+  output_files <- character(0)
+
+  for (col in names(indicadores)) {
+    file_stub <- indicadores[[col]]
+
+    data_indicador <- education_suaza |>
+      select(anio, territorio = municipio, valor = all_of(col)) |>
+      filter(!is.na(valor))
+
+    csv_file     <- file.path(output_dir, "csv", glue("{file_stub}.csv"))
+    parquet_file <- file.path(
+      output_dir, "parquet", glue("{file_stub}.parquet")
+    )
+
+    write_csv(data_indicador, csv_file)
+    write_parquet(data_indicador, parquet_file)
+
+    message(glue("💾 {file_stub}: {csv_file}"))
+    output_files <- c(output_files, csv_file, parquet_file)
+  }
 
   message(glue("✅ Processed {nrow(education_suaza)} rows for Suaza"))
   if (nrow(education_suaza) > 0) {
-    message(glue("📅 Years: {min(education_suaza$anio)} - {max(education_suaza$anio)}"))
+    anio_min <- min(education_suaza$anio)
+    anio_max <- max(education_suaza$anio)
+    message(glue("📅 Years: {anio_min} - {anio_max}"))
   }
-  message(glue("💾 CSV:     {csv_file}"))
-  message(glue("💾 Parquet: {parquet_file}"))
 
   return(list(
     data         = education_suaza,
-    output_files = c(csv_file, parquet_file)
+    output_files = output_files
   ))
 }
 

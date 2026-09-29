@@ -1,0 +1,30 @@
+name: Sync to Monorepo
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  notify-monorepo:
+    if: github.repository == 'OPS-DSS/dss-data-r' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger monorepo sync
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.MONOREPO_DISPATCH_TOKEN }}
+          repository: ${{ secrets.MONOREPO_OWNER }}/${{ secrets.MONOREPO_NAME }}
+          event-type: public-repo-update
+          client-payload: |
+            {
+              "repository": ${{ toJSON(github.event.repository.name) }},
+              "commit_sha": ${{ toJSON(github.event.pull_request.merge_commit_sha) }},
+              "commit_message": ${{ toJSON(github.event.pull_request.title) }},
+              "pr_number": "${{ github.event.pull_request.number }}",
+              "pr_author": ${{ toJSON(github.event.pull_request.user.login) }},
+              "pr_url": ${{ toJSON(github.event.pull_request.html_url) }}
+            }
