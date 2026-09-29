@@ -12,7 +12,7 @@ on:
 
 jobs:
   sync-dashboard-data:
-    if: github.repository == 'OPS-DSS/dss-data-r-regional
+    if: github.repository == 'OPS-DSS/dss-data-r-regional'
     runs-on: ubuntu-latest
 
     steps:
