@@ -12,6 +12,7 @@ on:
 
 jobs:
   sync-dashboard-data:
+    if: github.repository == 'OPS-DSS/dss-dashboard-regional
     runs-on: ubuntu-latest
 
     steps:
