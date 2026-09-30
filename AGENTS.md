@@ -132,21 +132,21 @@ if partial or for a single year.
 
 ```yaml
 indicator_key:
-  id: "INDICATOR_ID"
-  names: { es: "...", en: "..." }
-  source: { name: "...", url: "..." }
-  category: "domain/subdomain"
+  id: 'INDICATOR_ID'
+  names: { es: '...', en: '...' }
+  source: { name: '...', url: '...' }
+  category: 'domain/subdomain'
   processing:
-    type: "..."               # e.g. scraping, mock
-    script: "src/indicators/<domain>/<indicator>/<script>.R"
+    type: '...' # e.g. scraping, mock
+    script: 'src/indicators/<domain>/<indicator>/<script>.R'
   output:
-    format: ["csv", "parquet"]   # or geojson for spatial
-    structure: "long"            # or spatial
-    files: ["output_name"]
-    columns:                     # name + type per column
-      - { name: "iso3", type: "character" }
-      - { name: "anio", type: "integer" }
-  updated: "YYYY-MM-DD"
+    format: ['csv', 'parquet'] # or geojson for spatial
+    structure: 'long' # or spatial
+    files: ['output_name']
+    columns: # name + type per column
+      - { name: 'iso3', type: 'character' }
+      - { name: 'anio', type: 'integer' }
+  updated: 'YYYY-MM-DD'
 ```
 
 `src/batch_process.R` reads the registry and calls `process_indicator()` for
@@ -280,7 +280,7 @@ When helping a user contribute:
 contains an agentic skill for scaffolding a simple **non-stratified** indicator
 script. A companion skill for **stratified** indicators is planned. Both are
 under testing and intended as upstream contributions here. Treat them as
-experimental: they scaffold script *structure*, and every rule in this file
+experimental: they scaffold script _structure_, and every rule in this file
 still applies to their output — especially section 0, rule 2.
 
 ---
