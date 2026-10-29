@@ -246,3 +246,31 @@ smv_analytics:
       - "scatter"
       - "forest-plot"
   updated: "2026-05-14"
+
+pobreza_multidimensional_huila:
+  id: "POBREZA_MULTIDIMENSIONAL_HUILA"
+  names:
+    es: "Incidencia de pobreza multidimensional - Huila"
+    en: "Multidimensional poverty incidence - Huila"
+  source:
+    name: "DANE - Pobreza Multidimensional Departamental 2025"
+    url: "https://www.dane.gov.co/files/operaciones/PM/anex-PMultidimensional-Departamental-2025.xlsx"
+  category: "dss/economy"
+  processing:
+    type: "official"
+    script: "src/indicators/welfare/pobreza_multidimensional_huila.R"
+  output:
+    format: ["csv", "parquet"]
+    structure: "long"
+    files:
+      - "pobreza-multidimensional-huila"
+    columns:
+      - {name: iso3, type: character}
+      - {name: Territorio, type: character}
+      - {name: cod_local, type: character}
+      - {name: anio, type: integer}
+      - {name: sexo, type: character}
+      - {name: zona, type: character}
+      - {name: etnia, type: character}
+      - {name: valor, type: numeric}
+  updated: "2026-10-29"
