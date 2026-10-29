@@ -256,6 +256,8 @@ pobreza_multidimensional_huila:
     name: "DANE - Pobreza Multidimensional Departamental 2025"
     url: "https://www.dane.gov.co/files/operaciones/PM/anex-PMultidimensional-Departamental-2025.xlsx"
   category: "dss/economy"
+  subcategory: "socioeconomic_status"
+  secondary_categories: ["dss/social_status"]
   processing:
     type: "official"
     script: "src/indicators/welfare/pobreza_multidimensional_huila.R"
